@@ -14,7 +14,7 @@ def exampleResults : Json := json% {"vcs":
     "kind": "primary",
     "action": "initializer"},
    "id": 0},
-  {"status": "proven",
+  {"status": null,
    "name": "initializer_single_leader",
    "metadata":
    {"stmtDerivedFrom": ["Invariants", "initializer", "Assumptions", "single_leader"],
@@ -54,7 +54,7 @@ def exampleResults : Json := json% {"vcs":
     "kind": "primary",
     "action": "send"},
    "id": 5},
-  {"status": "proven",
+  {"status": "unknown",
    "name": "send_single_leader",
    "metadata":
    {"stmtDerivedFrom": ["send", "Invariants", "Assumptions", "single_leader"],
@@ -110,7 +110,7 @@ def exampleResults : Json := json% {"vcs":
     "kind": "primary",
     "action": "recv"},
    "id": 12},
-  {"status": "proven",
+  {"status": "error",
    "name": "recv_inv_1",
    "metadata":
    {"stmtDerivedFrom": ["recv", "Invariants", "Assumptions", "inv_1"],
