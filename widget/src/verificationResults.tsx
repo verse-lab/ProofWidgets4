@@ -209,33 +209,6 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
       border-color: #1890ff;
     }
 
-    .vr-summary {
-      margin-bottom: 16px;
-      padding: 12px;
-      background: white;
-      border: 1px solid #e0e0e0;
-      border-radius: 6px;
-      display: flex;
-      gap: 24px;
-      font-size: 14px;
-    }
-
-    .vr-summary-item {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .vr-summary-label {
-      color: #666;
-      font-size: 12px;
-    }
-
-    .vr-summary-value {
-      font-weight: 600;
-      font-size: 18px;
-      color: #333;
-    }
-
     .vr-section {
       margin-bottom: 24px;
       background: white;
@@ -374,7 +347,7 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
       <div className="vr-root">
         {/* Filters */}
         <div className="vr-filters">
-          <span className="vr-filter-label">Filter by status:</span>
+          <span className="vr-filter-label">Filter by status ({results.totalVCs} VCs):</span>
           {(['all', 'pending', 'proven', 'disproven', 'unknown', 'error'] as StatusFilter[]).map((filter) => (
             <button
               key={filter}
@@ -384,22 +357,6 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
               {getFilterButtonContent(filter)} ({statusCounts[filter]})
             </button>
           ))}
-        </div>
-
-        {/* Summary */}
-        <div className="vr-summary">
-          <div className="vr-summary-item">
-            <span className="vr-summary-label">Total VCs</span>
-            <span className="vr-summary-value">{results.totalVCs}</span>
-          </div>
-          <div className="vr-summary-item">
-            <span className="vr-summary-label">Solved</span>
-            <span className="vr-summary-value">{results.totalSolved}</span>
-          </div>
-          <div className="vr-summary-item">
-            <span className="vr-summary-label">Discharged</span>
-            <span className="vr-summary-value">{results.totalDischarged}</span>
-          </div>
         </div>
 
         {filteredVCs.length === 0 ? (
