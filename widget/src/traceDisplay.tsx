@@ -291,16 +291,17 @@ const KVRow: React.FC<{ k: string; v: unknown; changeInfo?: ChangeInfo }> = ({
   const collapsible = isCollapsibleValue(v);
   const [expanded, setExpanded] = React.useState(!collapsible);
 
-  // For non-array changes, highlight the whole row
-  const fullRowChanged = changeInfo?.type === 'full';
+  // Highlight the row if there's any change (array or full)
+  const hasChange = changeInfo?.type === 'full' || changeInfo?.type === 'array';
 
-  // For array changes, pass the indices to the rendering function
-  const changedIndices = changeInfo?.type === 'array' ? changeInfo.changedIndices : undefined;
+  // For array changes, pass the indices to the rendering function ONLY when expanded
+  const changedIndices =
+    expanded && changeInfo?.type === 'array' ? changeInfo.changedIndices : undefined;
 
   return (
     <div
       className={`kv-row ${collapsible ? "has-toggle" : ""} ${
-        fullRowChanged ? "changed" : ""
+        hasChange ? "changed" : ""
       }`}
     >
       <div className="kv-key">
