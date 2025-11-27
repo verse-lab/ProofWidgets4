@@ -27,22 +27,23 @@ interface VerificationResultsProps {
   results: VerificationResults;
 }
 
-type StatusFilter = 'all' | 'proven' | 'disproven' | 'unknown' | 'error';
+type StatusFilter = 'all' | 'proven' | 'disproven' | 'unknown' | 'error' | 'pending';
 
 // ========== Helpers ==========
 
-function getStatusIcon(status: VerificationCondition['status']): string {
+function getStatusIcon(status: VerificationCondition['status']): React.ReactNode {
   switch (status) {
     case 'proven': return '✅';
     case 'disproven': return '❌';
     case 'unknown': return '❓';
     case 'error': return '💥';
+    case null: return <span className="spinner">⏳</span>;
     default: return '⭕';
   }
 }
 
 function getStatusClass(status: VerificationCondition['status']): string {
-  return status || 'unknown';
+  return status || 'pending';
 }
 
 // Group VCs by action
@@ -59,6 +60,27 @@ function groupByAction(vcs: VerificationCondition[]): Map<string, VerificationCo
 }
 
 // ========== Components ==========
+
+function getFilterButtonContent(filter: StatusFilter): React.ReactNode {
+  const label = filter === 'all' ? 'All' : filter.charAt(0).toUpperCase() + filter.slice(1);
+
+  switch (filter) {
+    case 'all':
+      return label;
+    case 'pending':
+      return <><span className="spinner-small">⏳</span> {label}</>;
+    case 'proven':
+      return <>✅ {label}</>;
+    case 'disproven':
+      return <>❌ {label}</>;
+    case 'unknown':
+      return <>❓ {label}</>;
+    case 'error':
+      return <>💥 {label}</>;
+    default:
+      return label;
+  }
+}
 
 const PropertyRow: React.FC<{ vc: VerificationCondition }> = ({ vc }) => {
   return (
@@ -95,9 +117,38 @@ const ActionSection: React.FC<{
 const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }) => {
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>('all');
 
+  // Compute counts for each status
+  const statusCounts = React.useMemo(() => {
+    const counts = {
+      all: results.vcs.length,
+      pending: 0,
+      proven: 0,
+      disproven: 0,
+      unknown: 0,
+      error: 0,
+    };
+
+    results.vcs.forEach((vc) => {
+      if (vc.status === null) {
+        counts.pending++;
+      } else if (vc.status === 'proven') {
+        counts.proven++;
+      } else if (vc.status === 'disproven') {
+        counts.disproven++;
+      } else if (vc.status === 'unknown') {
+        counts.unknown++;
+      } else if (vc.status === 'error') {
+        counts.error++;
+      }
+    });
+
+    return counts;
+  }, [results.vcs]);
+
   // Filter VCs based on status
   const filteredVCs = React.useMemo(() => {
     if (statusFilter === 'all') return results.vcs;
+    if (statusFilter === 'pending') return results.vcs.filter((vc) => vc.status === null);
     return results.vcs.filter((vc) => vc.status === statusFilter);
   }, [results.vcs, statusFilter]);
 
@@ -289,6 +340,26 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
       border-left: 3px solid #1890ff;
     }
 
+    .property-row.status-pending {
+      background: #fefefe;
+      border-left: 3px solid #d9d9d9;
+    }
+
+    .spinner {
+      display: inline-block;
+      animation: spin 2s linear infinite;
+    }
+
+    .spinner-small {
+      display: inline-block;
+      font-size: 14px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
     .vr-empty {
       padding: 24px;
       text-align: center;
@@ -304,13 +375,13 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
         {/* Filters */}
         <div className="vr-filters">
           <span className="vr-filter-label">Filter by status:</span>
-          {(['all', 'proven', 'disproven', 'unknown', 'error'] as StatusFilter[]).map((filter) => (
+          {(['all', 'pending', 'proven', 'disproven', 'unknown', 'error'] as StatusFilter[]).map((filter) => (
             <button
               key={filter}
               className={`vr-filter-button ${statusFilter === filter ? 'active' : ''}`}
               onClick={() => setStatusFilter(filter)}
             >
-              {filter === 'all' ? 'All' : filter.charAt(0).toUpperCase() + filter.slice(1)}
+              {getFilterButtonContent(filter)} ({statusCounts[filter]})
             </button>
           ))}
         </div>
