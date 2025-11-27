@@ -289,10 +289,12 @@ const KVRow: React.FC<{ k: string; v: unknown; changeInfo?: ChangeInfo }> = ({
   changeInfo,
 }) => {
   const collapsible = isCollapsibleValue(v);
-  const [expanded, setExpanded] = React.useState(!collapsible);
 
   // Highlight the row if there's any change (array or full)
   const hasChange = changeInfo?.type === 'full' || changeInfo?.type === 'array';
+
+  // Automatically expand if there's a change, otherwise collapse if collapsible
+  const [expanded, setExpanded] = React.useState(!collapsible || hasChange);
 
   // For array changes, pass the indices to the rendering function ONLY when expanded
   const changedIndices =
