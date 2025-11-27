@@ -78,25 +78,70 @@ function deepEqual(a: unknown, b: unknown): boolean {
   return false;
 }
 
-/** Compute the keys that have changed from prev to curr (including added, removed, or changed values) */
-function diffChangedKeys(
+/** For arrays, compute which indices have changed between prev and curr */
+function diffArrayIndices(prev: unknown[], curr: unknown[]): Set<number> {
+  const changed = new Set<number>();
+  const maxLen = Math.max(prev.length, curr.length);
+
+  for (let i = 0; i < maxLen; i++) {
+    if (i >= prev.length || i >= curr.length) {
+      // Element was added or removed
+      changed.add(i);
+    } else if (!deepEqual(prev[i], curr[i])) {
+      // Element changed
+      changed.add(i);
+    }
+  }
+
+  return changed;
+}
+
+/** Value change info: either the whole value changed, or specific array indices changed */
+type ChangeInfo =
+  | { type: 'full' }  // Entire value changed (non-array or structural change)
+  | { type: 'array'; changedIndices: Set<number> }  // Array with specific elements changed
+  | { type: 'none' };  // No change
+
+/** Compute change information for each field */
+function diffChanges(
   prev: Record<string, unknown> | undefined,
   curr: Record<string, unknown>
-): Set<string> {
-  const changed = new Set<string>();
-  if (!prev) return changed; // No previous state for the first frame
+): Map<string, ChangeInfo> {
+  const changes = new Map<string, ChangeInfo>();
+  if (!prev) return changes; // No previous state for the first frame
 
   const keys = new Set<string>([...Object.keys(prev), ...Object.keys(curr)]);
   for (const k of keys) {
     const hasA = k in prev;
     const hasB = k in curr;
+
     if (!hasA || !hasB) {
-      changed.add(k);
+      // Key was added or removed
+      changes.set(k, { type: 'full' });
       continue;
     }
-    if (!deepEqual((prev as any)[k], (curr as any)[k])) changed.add(k);
+
+    const prevVal = (prev as any)[k];
+    const currVal = (curr as any)[k];
+
+    if (deepEqual(prevVal, currVal)) {
+      // No change
+      continue;
+    }
+
+    // Check if both are arrays
+    if (Array.isArray(prevVal) && Array.isArray(currVal)) {
+      const changedIndices = diffArrayIndices(prevVal, currVal);
+      if (changedIndices.size > 0) {
+        changes.set(k, { type: 'array', changedIndices });
+      }
+    } else {
+      // Non-array changed, or type changed between array and non-array
+      changes.set(k, { type: 'full' });
+    }
   }
-  return changed;
+
+  return changes;
 }
 
 /* ===================== Render ===================== */
@@ -112,17 +157,23 @@ function joinNodes(nodes: React.ReactNode[], sep: React.ReactNode = ', '): React
 }
 
 /** Render any value "inline" (arrays also inline as [a, b, ...], not converted to <ul>) */
-function renderValueInline(x: unknown): React.ReactNode {
+function renderValueInline(x: unknown, changedIndices?: Set<number>, index?: number): React.ReactNode {
+  const isChanged = changedIndices !== undefined && index !== undefined && changedIndices.has(index);
+
   if (Array.isArray(x)) {
-    return <code>[{joinNodes(x.map(renderValueInline))}]</code>;
+    const elements = x.map((el, i) => renderValueInline(el, changedIndices, i));
+    return <code>[{joinNodes(elements)}]</code>;
   }
   if (typeof x === 'object' && x !== null) {
-    return <code>{JSON.stringify(x)}</code>;
+    const content = JSON.stringify(x);
+    return isChanged ? <code className="changed-element">{content}</code> : <code>{content}</code>;
   }
   if (typeof x === 'string') {
-    return <code>{dequalify(x)}</code>;
+    const content = dequalify(x);
+    return isChanged ? <code className="changed-element">{content}</code> : <code>{content}</code>;
   }
-  return <code>{String(x)}</code>;
+  const content = String(x);
+  return isChanged ? <code className="changed-element">{content}</code> : <code>{content}</code>;
 }
 
 
@@ -131,30 +182,36 @@ function renderValueInline(x: unknown): React.ReactNode {
  * - Otherwise, render the inner array inline as `[a, b, ...]`
  * If not an array, fallback to regular rendering
 */
-function renderRowFromInnerArray(e: unknown): React.ReactNode {
+function renderRowFromInnerArray(e: unknown, changedIndices?: Set<number>, index?: number): React.ReactNode {
+  const isChanged = changedIndices !== undefined && index !== undefined && changedIndices.has(index);
+
   if (Array.isArray(e)) {
     if (e.length === 2) {
       const a = renderValueInline(e[0]);
       const b = renderValueInline(e[1]);
-      return <code>({a}{', '}{b})</code>;      // ← Two elements in one line separated by a comma
+      const code = <code>({a}{', '}{b})</code>;      // ← Two elements in one line separated by a comma
+      return isChanged ? <span className="changed-element">{code}</span> : code;
     } else {
-      return renderValueInline(e);           // ← Other lengths, inline as [ ... ]
+      const content = renderValueInline(e);           // ← Other lengths, inline as [ ... ]
+      return isChanged ? <span className="changed-element">{content}</span> : content;
     }
   }
   return renderValue(e);
 }
 
 /** Original: Inline rendering of flat arrays */
-function renderInlineArray(arr: unknown[]): React.ReactNode {
+function renderInlineArray(arr: unknown[], changedIndices?: Set<number>): React.ReactNode {
   const parts: React.ReactNode[] = [];
   arr.forEach((e, i) => {
-    parts.push(renderValueInline(e));        // Use inline version to avoid converting to <ul>
+    const isChanged = changedIndices !== undefined && changedIndices.has(i);
+    const element = renderValueInline(e);        // Use inline version to avoid converting to <ul>
+    parts.push(isChanged ? <span key={i} className="changed-element">{element}</span> : <span key={i}>{element}</span>);
     if (i < arr.length - 1) parts.push(<span key={`comma-${i}`}>, </span>);
   });
   return <code>[{parts}]</code>;
 }
 
-function renderValue(v: unknown): React.ReactNode {
+function renderValue(v: unknown, changedIndices?: Set<number>): React.ReactNode {
   if (Array.isArray(v)) {
     if (v.length === 0) return <code>[]</code>;
 
@@ -175,14 +232,14 @@ function renderValue(v: unknown): React.ReactNode {
       return (
         <ul className="list">
           {v.map((e, i) => (
-            <li key={i}>{renderRowFromInnerArray(e)}</li>
+            <li key={i}>{renderRowFromInnerArray(e, changedIndices, i)}</li>
           ))}
         </ul>
       );
     }
 
     // Inline to [a, b, c]
-    return renderInlineArray(v);
+    return renderInlineArray(v, changedIndices);
   }
 
   if (typeof v === 'object' && v !== null) {
@@ -226,18 +283,24 @@ function previewValue(v: unknown): string {
   return String(v);
 }
 
-const KVRow: React.FC<{ k: string; v: unknown; changed?: boolean }> = ({
+const KVRow: React.FC<{ k: string; v: unknown; changeInfo?: ChangeInfo }> = ({
   k,
   v,
-  changed,
+  changeInfo,
 }) => {
   const collapsible = isCollapsibleValue(v);
   const [expanded, setExpanded] = React.useState(!collapsible);
 
+  // For non-array changes, highlight the whole row
+  const fullRowChanged = changeInfo?.type === 'full';
+
+  // For array changes, pass the indices to the rendering function
+  const changedIndices = changeInfo?.type === 'array' ? changeInfo.changedIndices : undefined;
+
   return (
     <div
       className={`kv-row ${collapsible ? "has-toggle" : ""} ${
-        changed ? "changed" : ""
+        fullRowChanged ? "changed" : ""
       }`}
     >
       <div className="kv-key">
@@ -259,7 +322,7 @@ const KVRow: React.FC<{ k: string; v: unknown; changed?: boolean }> = ({
         )}
 
         <div className="kv-content">
-          {expanded ? renderValue(v) : <code>{previewValue(v)}</code>}
+          {expanded ? renderValue(v, changedIndices) : <code>{previewValue(v)}</code>}
         </div>
       </div>
     </div>
@@ -269,8 +332,8 @@ const KVRow: React.FC<{ k: string; v: unknown; changed?: boolean }> = ({
 const StateCard: React.FC<{
   st: ParsedState;
   highlighted?: boolean;
-  changedKeys?: Set<string>;
-}> = ({ st, highlighted = false, changedKeys }) => {
+  changes?: Map<string, ChangeInfo>;
+}> = ({ st, highlighted = false, changes }) => {
   const [open, setOpen] = React.useState(true);
   const entries = Object.entries(st.fields);
 
@@ -290,7 +353,7 @@ const StateCard: React.FC<{
         <div className="state-body">
           <div className="kv-table">
             {entries.map(([k, v]) => (
-              <KVRow key={k} k={k} v={v} changed={changedKeys?.has(k)} />
+              <KVRow key={k} k={k} v={v} changeInfo={changes?.get(k)} />
             ))}
           </div>
         </div>
@@ -399,6 +462,15 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       border-left: 3px solid #faad14;
     }
     .kv-row.changed code { background: #fff1d6; }
+    .changed-element {
+      background: #ffeaa7 !important;
+      border-radius: 3px;
+      padding: 2px 4px;
+      box-shadow: 0 0 0 2px #fdcb6e;
+    }
+    .changed-element code {
+      background: #ffeaa7 !important;
+    }
     .kv-key {
       font-family: var(--mono);
       background: transparent;
@@ -455,8 +527,8 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
         <div className={`mc-trace ${isVertical ? "vertical" : "horizontal"}`}>
           {trace.map((s, idx) => {
             const prev = idx > 0 ? trace[idx - 1].fields : undefined;
-            const changed = diffChangedKeys(prev, s.fields);
-            return <StateCard key={s.index} st={s} changedKeys={changed} />;
+            const changes = diffChanges(prev, s.fields);
+            return <StateCard key={s.index} st={s} changes={changes} />;
           })}
         </div>
 
