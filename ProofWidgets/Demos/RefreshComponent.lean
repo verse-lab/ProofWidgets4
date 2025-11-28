@@ -1,7 +1,11 @@
-import ProofWidgets.Component.RefreshComponent
-import ProofWidgets.Component.HtmlDisplay
-import ProofWidgets.Component.OfRpcMethod
-import ProofWidgets.Component.Panel.SelectionPanel
+module
+
+public meta import ProofWidgets.Component.RefreshComponent
+public meta import ProofWidgets.Component.HtmlDisplay
+public meta import ProofWidgets.Component.OfRpcMethod
+public meta import ProofWidgets.Component.Panel.SelectionPanel
+
+public meta section
 
 /-!
 This file showcases the `RefreshComponent` using some basic examples.

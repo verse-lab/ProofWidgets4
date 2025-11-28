@@ -1,10 +1,14 @@
+module
+
 /-
 Copyright (c) 2025 Jovan Gerbscheid. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Jovan Gerbscheid
 -/
-import ProofWidgets.Data.Html
-import ProofWidgets.Util
+public meta import ProofWidgets.Data.Html
+public meta import ProofWidgets.Util
+
+public meta section
 
 /-!
 ## The `RefreshComponent` widget
@@ -42,7 +46,7 @@ structure RefreshState where
   next : Task (Option ResultProps)
 
 /-- A reference to a `RefreshState`. This is used to keep track of the refresh state. -/
-def RefreshRef := IO.Ref RefreshState
+@[expose] def RefreshRef := IO.Ref RefreshState
 
 instance : TypeName RefreshRef := unsafe .mk RefreshRef ``RefreshRef
 
