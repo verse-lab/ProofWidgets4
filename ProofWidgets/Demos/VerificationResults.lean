@@ -1,9 +1,14 @@
 module
 
+public meta import ProofWidgets.Component.RefreshComponent
+public meta import ProofWidgets.Component.OfRpcMethod
+public meta import ProofWidgets.Component.Panel.SelectionPanel
 public meta import ProofWidgets.Component.VerificationResults
+public meta import ProofWidgets.Component.HtmlDisplay
 
 public meta section
-open Lean ProofWidgets
+open Lean.Widget ProofWidgets RefreshComponent Jsx Lean Server
+
 
 def exampleResults : Json := json% {"vcs":
  [{"status": "proven",
@@ -130,4 +135,27 @@ def exampleResults : Json := json% {"vcs":
  "totalSolved": 15,
  "totalDischarged": 15}
 
-#displayVerificationResults exampleResults
+instance : Lean.Server.RpcEncodable Unit where
+  rpcEncode _ := pure .null
+  rpcDecode _ := pure ()
+
+
+def getVerificationResults : CoreM Html := do
+    mkRefreshComponentM (.text "Loading...") randomResults
+where
+  randomiseResult (initial : Json) : CoreM (Option Json) := do
+    let randInt ← IO.rand 0 100
+    let randName := s!"haha_{randInt}"
+    let str := initial.pretty.replace "doesNotThrow" randName
+    match Json.parse str with
+    | .ok json => return some json
+    | .error _ => return none
+
+  randomResults : CoreM (RefreshStep CoreM) := do
+    IO.sleep 100
+    Core.checkSystem "getVerificationResults"
+    let .some randomResult ← randomiseResult exampleResults | return .last <| .text "Error"
+    let html := Html.ofComponent VerificationResultsViewer {results := randomResult} #[]
+    return .cont html randomResults
+
+#html getVerificationResults
