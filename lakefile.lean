@@ -2,9 +2,7 @@ import Lake
 open Lake DSL System
 
 package proofwidgets where
-  preferReleaseBuild := true
-  buildArchive? := "ProofWidgets4.tar.gz"
-  releaseRepo := "https://github.com/leanprover-community/ProofWidgets4"
+  preferReleaseBuild := false
   leanOptions := #[⟨`experimental.module, true⟩]
 
 def widgetDir : FilePath := "widget"
