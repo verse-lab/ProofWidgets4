@@ -363,7 +363,7 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
       background: var(--vscode-editorWidget-background);
       color: var(--vscode-descriptionForeground);
       border: 1px solid var(--vscode-panel-border);
-      border-radius: 3px;
+      border-radius: 6px;
       white-space: nowrap;
     }
 
@@ -422,15 +422,19 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
         {/* Filters */}
         <div className="vr-filters">
           <span className="vr-filter-label">Filter by status ({results.totalVCs} VCs):</span>
-          {(['all', 'pending', 'proven', 'disproven', 'unknown', 'error'] as StatusFilter[]).map((filter) => (
-            <button
-              key={filter}
-              className={`vr-filter-button ${statusFilter === filter ? 'active' : ''}`}
-              onClick={() => setStatusFilter(filter)}
-            >
-              {getFilterButtonContent(filter)} ({statusCounts[filter]})
-            </button>
-          ))}
+          {(['all', 'pending', 'proven', 'disproven', 'unknown', 'error'] as StatusFilter[]).map((filter) => {
+            // Only show filter buttons for groups with elements
+            if (statusCounts[filter] === 0) return null;
+            return (
+              <button
+                key={filter}
+                className={`vr-filter-button ${statusFilter === filter ? 'active' : ''}`}
+                onClick={() => setStatusFilter(filter)}
+              >
+                {getFilterButtonContent(filter)} ({statusCounts[filter]})
+              </button>
+            );
+          })}
         </div>
 
         {filteredVCs.length === 0 ? (
