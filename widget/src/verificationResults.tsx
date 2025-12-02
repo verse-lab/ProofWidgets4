@@ -141,6 +141,42 @@ const ActionSection: React.FC<{
 const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }) => {
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>('all');
 
+  // Compute status colors with consistent semantic colors across all themes
+  const statusColors = React.useMemo(() => {
+    const withOpacity = (color: string, opacity: number): string => {
+      // Parse hex color to rgba
+      const hex = color.replace('#', '');
+      const r = parseInt(hex.substring(0, 2), 16);
+      const g = parseInt(hex.substring(2, 4), 16);
+      const b = parseInt(hex.substring(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+    }
+
+    // Use consistent semantic colors across all themes
+    return {
+      proven: {
+        border: '#52c41a',  // green
+        bg: withOpacity('#52c41a', 0.1),
+      },
+      disproven: {
+        border: '#ff4d4f',  // red
+        bg: withOpacity('#ff4d4f', 0.1),
+      },
+      error: {
+        border: '#fa8c16',  // orange
+        bg: withOpacity('#fa8c16', 0.1),
+      },
+      unknown: {
+        border: '#1890ff',  // blue
+        bg: withOpacity('#1890ff', 0.1),
+      },
+      pending: {
+        border: '#d9d9d9',  // gray
+        bg: withOpacity('#d9d9d9', 0.05),
+      },
+    }
+  }, []);
+
   // Compute counts for each status
   const statusCounts = React.useMemo(() => {
     const counts = {
@@ -185,12 +221,12 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
     ([action]) => action !== 'initializer'
   );
 
-  const styles = `
+  const styles = React.useMemo(() => `
     .vr-root {
       font-family: system-ui, -apple-system, sans-serif;
       max-width: 100%;
       padding: 16px;
-      background: #fafafa;
+      background: var(--vscode-editor-background);
       border-radius: 8px;
     }
 
@@ -199,8 +235,8 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
       gap: 8px;
       margin-bottom: 16px;
       padding: 12px;
-      background: white;
-      border: 1px solid #e0e0e0;
+      background: var(--vscode-editorWidget-background);
+      border: 1px solid var(--vscode-panel-border);
       border-radius: 6px;
       flex-wrap: wrap;
       align-items: center;
@@ -209,13 +245,14 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
     .vr-filter-label {
       font-weight: 600;
       font-size: 14px;
-      color: #333;
+      color: var(--vscode-foreground);
     }
 
     .vr-filter-button {
       padding: 6px 12px;
-      border: 1px solid #d0d0d0;
-      background: white;
+      border: 1px solid var(--vscode-panel-border);
+      background: var(--vscode-editorWidget-background);
+      color: var(--vscode-foreground);
       border-radius: 4px;
       cursor: pointer;
       font-size: 13px;
@@ -223,20 +260,20 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
     }
 
     .vr-filter-button:hover {
-      background: #f5f5f5;
-      border-color: #999;
+      background: var(--vscode-list-hoverBackground);
+      border-color: var(--vscode-panel-border);
     }
 
     .vr-filter-button.active {
-      background: #1890ff;
-      color: white;
-      border-color: #1890ff;
+      background: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      border-color: var(--vscode-button-background);
     }
 
     .vr-section {
       margin-bottom: 24px;
-      background: white;
-      border: 1px solid #e0e0e0;
+      background: var(--vscode-editorWidget-background);
+      border: 1px solid var(--vscode-panel-border);
       border-radius: 6px;
       overflow: hidden;
     }
@@ -245,9 +282,9 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
       font-weight: 600;
       font-size: 16px;
       padding: 12px 16px;
-      background: #f0f0f0;
-      border-bottom: 1px solid #e0e0e0;
-      color: #333;
+      background: var(--vscode-editorGroupHeader-tabsBackground);
+      border-bottom: 1px solid var(--vscode-panel-border);
+      color: var(--vscode-foreground);
     }
 
     .vr-section-content {
@@ -256,7 +293,7 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
 
     .action-section {
       margin-bottom: 12px;
-      border: 1px solid #e8e8e8;
+      border: 1px solid var(--vscode-panel-border);
       border-radius: 4px;
       overflow: hidden;
     }
@@ -266,30 +303,30 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
       align-items: center;
       gap: 8px;
       padding: 10px 12px;
-      background: #fafafa;
+      background: var(--vscode-editorWidget-background);
       cursor: pointer;
       user-select: none;
       transition: background 0.2s;
     }
 
     .action-header:hover {
-      background: #f0f0f0;
+      background: var(--vscode-list-hoverBackground);
     }
 
     .action-toggle {
       font-size: 12px;
-      color: #666;
+      color: var(--vscode-descriptionForeground);
     }
 
     .action-name {
       font-weight: 600;
       font-size: 14px;
-      color: #333;
+      color: var(--vscode-foreground);
     }
 
     .action-properties {
       padding: 8px 12px 8px 32px;
-      background: white;
+      background: var(--vscode-editorWidget-background);
     }
 
     .property-row {
@@ -303,7 +340,7 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
     }
 
     .property-row:hover {
-      background: #f9f9f9;
+      background: var(--vscode-list-hoverBackground);
     }
 
     .property-icon {
@@ -314,44 +351,45 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
     .property-name {
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       font-size: 13px;
-      color: #333;
+      color: var(--vscode-editor-foreground);
       flex-grow: 1;
     }
 
     .property-time {
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       font-size: 12px;
-      color: #666;
       margin-left: auto;
       padding: 2px 6px;
-      background: #f5f5f5;
+      background: var(--vscode-editorWidget-background);
+      color: var(--vscode-descriptionForeground);
+      border: 1px solid var(--vscode-panel-border);
       border-radius: 3px;
       white-space: nowrap;
     }
 
     .property-row.status-proven {
-      background: #f6ffed;
-      border-left: 3px solid #52c41a;
+      background: ${statusColors.proven.bg};
+      border-left: 3px solid ${statusColors.proven.border};
     }
 
     .property-row.status-disproven {
-      background: #fff1f0;
-      border-left: 3px solid #ff4d4f;
+      background: ${statusColors.disproven.bg};
+      border-left: 3px solid ${statusColors.disproven.border};
     }
 
     .property-row.status-error {
-      background: #fff7e6;
-      border-left: 3px solid #fa8c16;
+      background: ${statusColors.error.bg};
+      border-left: 3px solid ${statusColors.error.border};
     }
 
     .property-row.status-unknown {
-      background: #f0f5ff;
-      border-left: 3px solid #1890ff;
+      background: ${statusColors.unknown.bg};
+      border-left: 3px solid ${statusColors.unknown.border};
     }
 
     .property-row.status-pending {
-      background: #fefefe;
-      border-left: 3px solid #d9d9d9;
+      background: ${statusColors.pending.bg};
+      border-left: 3px solid ${statusColors.pending.border};
     }
 
     .spinner {
@@ -372,10 +410,10 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
     .vr-empty {
       padding: 24px;
       text-align: center;
-      color: #999;
+      color: var(--vscode-disabledForeground);
       font-style: italic;
     }
-  `;
+  `, [statusColors]);
 
   return (
     <>

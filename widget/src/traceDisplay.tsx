@@ -393,15 +393,15 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
     .mc-summary {
       margin: 12px 8px;
       padding: 8px 12px;
-      background: #f8f9fa;
-      border: 1px solid #dee2e6;
+      background: var(--vscode-editorWidget-background);
+      border: 1px solid var(--vscode-panel-border);
       border-radius: 4px;
     }
     .state-card {
-      --border: #bfbfbf;
-      --header: #e6e6e6;
+      --border: var(--vscode-panel-border);
+      --header: var(--vscode-editorGroupHeader-tabsBackground);
       --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-      background: #fff;
+      background: var(--vscode-editorWidget-background);
       border: 1px solid var(--border);
       border-radius: 6px;
       min-width: 320px;
@@ -410,8 +410,8 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       overflow: hidden;
     }
     .state-card.is-highlighted {
-      outline: 2px solid #ffc107;
-      box-shadow: 0 0 0 3px rgba(255,193,7,.25);
+      outline: 2px solid var(--vscode-editor-selectionHighlightBorder);
+      box-shadow: 0 0 0 3px var(--vscode-editor-selectionBackground);
     }
     .state-header {
       background: var(--header);
@@ -428,16 +428,16 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       gap: 6px;
       align-items: baseline;
     }
-    .state-id { font-size: 12px; color: #666; }
-    .state-toggle { font-size: 12px; color: #666; user-select: none; }
+    .state-id { font-size: 12px; color: var(--vscode-descriptionForeground); }
+    .state-toggle { font-size: 12px; color: var(--vscode-descriptionForeground); user-select: none; }
     .action-chip {
       display: inline-block;
       font-family: var(--mono);
       font-size: 11px;
       font-weight: normal;
-      background: #eaf2ff;
-      color: #3b3b3dff;
-      border: 1px solid #a9c3feff;
+      background: var(--vscode-activityBarBadge-background);
+      color: var(--vscode-activityBarBadge-foreground);
+      border: 1px solid var(--vscode-activityBarBadge-foreground);
       border-radius: 999px;
       padding: 2px 8px;
       line-height: 1.4;
@@ -454,25 +454,23 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       gap: 8px;
       padding: 4px 10px;
       align-items: baseline;
-      border-bottom: 1px solid #eee;
-      background: white;
+      border-bottom: 1px solid var(--vscode-panel-border);
+      background: var(--vscode-editor-background);
       transition: background-color .15s ease, border-left-color .15s ease;
       border-left: 3px solid transparent;
     }
     .kv-row:last-child { border-bottom: none; }
     .kv-row.changed {
-      background: #fff7e6;
-      border-left: 3px solid #faad14;
+      background: var(--vscode-editor-findMatchHighlightBackground);
+      border-left: 3px solid var(--vscode-editor-findMatchHighlightBorder);
+      color: var(--vscode-editor-foreground);
     }
-    .kv-row.changed code { background: #fff1d6; }
     .changed-element {
-      background: #ffeaa7 !important;
+      background: var(--vscode-editor-findMatchBackground);
       border-radius: 3px;
       padding: 2px 4px;
-      box-shadow: 0 0 0 2px #fdcb6e;
-    }
-    .changed-element code {
-      background: #ffeaa7 !important;
+      box-shadow: 0 0 0 2px var(--vscode-editor-findMatchBorder);
+      color: var(--vscode-editor-foreground);
     }
     .kv-key {
       font-family: var(--mono);
@@ -480,7 +478,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       word-break: break-all;
       font-size: 11px;
     }
-    .kv-sep { color: #888; background: transparent; }
+    .kv-sep { color: var(--vscode-descriptionForeground); background: transparent; }
     .kv-val {
       font-family: var(--mono);
       font-size: 11px;
@@ -490,7 +488,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
     }
     .kv-toggle {
       border: none; background: transparent; font-size: 12px; line-height: 1;
-      cursor: pointer; color: #666; padding: 0 2px;
+      cursor: pointer; color: var(--vscode-descriptionForeground); padding: 0 2px;
     }
     .kv-val.collapsed .kv-content code {
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
@@ -506,12 +504,12 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       font-size: 11px;
       line-height: 1.4;
       background: transparent;
-      color: #333;
+      color: var(--vscode-foreground);
       margin: 2px 0;
     }
     code {
       background: transparent;
-      color: #333;
+      color: var(--vscode-foreground);
       padding: 2px 4px;
       border-radius: 3px;
       font-family: var(--mono);
