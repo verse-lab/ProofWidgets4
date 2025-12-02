@@ -9,11 +9,26 @@ interface VCMetadata {
   action: string;
 }
 
+interface Discharger {
+  id: number;
+  name: string;
+  status: string;
+  time: number;
+}
+
+interface VCTiming {
+  totalTime: number | null;
+  successfulDischargerTime?: number;
+  successfulDischargerId?: number;
+  dischargers: Discharger[];
+}
+
 interface VerificationCondition {
   id: number;
   name: string;
   status: 'proven' | 'disproven' | 'unknown' | 'error' | null;
   metadata: VCMetadata;
+  timing: VCTiming;
 }
 
 interface VerificationResults {
@@ -83,10 +98,19 @@ function getFilterButtonContent(filter: StatusFilter): React.ReactNode {
 }
 
 const PropertyRow: React.FC<{ vc: VerificationCondition }> = ({ vc }) => {
+  const formatTime = (ms: number | null) => {
+    if (ms === null) return null;
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(2)}s`;
+  };
+
   return (
     <div className={`property-row status-${getStatusClass(vc.status)}`}>
       <span className="property-icon">{getStatusIcon(vc.status)}</span>
       <span className="property-name">{vc.metadata.property}</span>
+      {vc.timing.totalTime !== null && (
+        <span className="property-time">{formatTime(vc.timing.totalTime)}</span>
+      )}
     </div>
   );
 };
@@ -291,6 +315,18 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       font-size: 13px;
       color: #333;
+      flex-grow: 1;
+    }
+
+    .property-time {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      color: #666;
+      margin-left: auto;
+      padding: 2px 6px;
+      background: #f5f5f5;
+      border-radius: 3px;
+      white-space: nowrap;
     }
 
     .property-row.status-proven {
