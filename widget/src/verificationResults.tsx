@@ -1,4 +1,5 @@
 import * as React from 'react';
+import HtmlDisplay, { Html } from './htmlDisplay';
 
 // ========== Types ==========
 
@@ -9,11 +10,28 @@ interface VCMetadata {
   action: string;
 }
 
+interface Counterexample {
+  model?: any;
+  html: Html;
+}
+
+interface DischargerResultData {
+  kind: string;
+  counterexamples?: Counterexample[];
+}
+
+interface DischargerResult {
+  time: number;
+  status: string;
+  data?: DischargerResultData;
+}
+
 interface Discharger {
   id: number;
   name: string;
   status: string;
   time: number;
+  result?: DischargerResult;
 }
 
 interface VCTiming {
@@ -98,20 +116,55 @@ function getFilterButtonContent(filter: StatusFilter): React.ReactNode {
 }
 
 const PropertyRow: React.FC<{ vc: VerificationCondition }> = ({ vc }) => {
+  const [expanded, setExpanded] = React.useState(false);
+
   const formatTime = (ms: number | null) => {
     if (ms === null) return null;
     if (ms < 1000) return `${ms}ms`;
     return `${(ms / 1000).toFixed(2)}s`;
   };
 
+  // Check if this disproven VC has counterexamples
+  const getFirstCounterexample = (): Counterexample | null => {
+    if (vc.status !== 'disproven') return null;
+
+    for (const discharger of vc.timing.dischargers) {
+      const counterexamples = discharger.result?.data?.counterexamples;
+      if (counterexamples && counterexamples.length > 0) {
+        return counterexamples[0];
+      }
+    }
+    return null;
+  };
+
+  const counterexample = getFirstCounterexample();
+  const hasCounterexample = counterexample !== null;
+
   return (
-    <div className={`property-row status-${getStatusClass(vc.status)}`}>
-      <span className="property-icon">{getStatusIcon(vc.status)}</span>
-      <span className="property-name">{vc.metadata.property}</span>
-      {vc.timing.totalTime !== null && (
-        <span className="property-time">{formatTime(vc.timing.totalTime)}</span>
+    <>
+      <div
+        className={`property-row status-${getStatusClass(vc.status)} ${hasCounterexample ? 'expandable' : ''}`}
+        onClick={() => hasCounterexample && setExpanded(!expanded)}
+        style={{ cursor: hasCounterexample ? 'pointer' : 'default' }}
+      >
+        {hasCounterexample && (
+          <span className="property-toggle">{expanded ? '▼' : '▶'}</span>
+        )}
+        <span className="property-icon">{getStatusIcon(vc.status)}</span>
+        <span className="property-name">{vc.metadata.property}</span>
+        {vc.timing.totalTime !== null && (
+          <span className="property-time">{formatTime(vc.timing.totalTime)}</span>
+        )}
+      </div>
+      {expanded && counterexample && (
+        <div className="counterexample-container">
+          <div className="counterexample-label">Counterexample:</div>
+          <div className="counterexample-content">
+            <HtmlDisplay html={counterexample.html} />
+          </div>
+        </div>
       )}
-    </div>
+    </>
   );
 };
 
@@ -413,6 +466,48 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
       color: var(--vscode-disabledForeground);
       font-style: italic;
     }
+
+    .property-row.expandable:hover {
+      background: var(--vscode-list-activeSelectionBackground);
+      opacity: 0.9;
+    }
+
+    .property-toggle {
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+      margin-right: 4px;
+      flex-shrink: 0;
+    }
+
+    .counterexample-container {
+      margin-left: 32px;
+      margin-top: 8px;
+      margin-bottom: 8px;
+      padding: 12px;
+      background: var(--vscode-editorWidget-background);
+      border-left: 3px solid #ff4d4f;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+
+    .counterexample-label {
+      font-weight: 600;
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .counterexample-content {
+      font-size: 13px;
+      color: var(--vscode-editor-foreground);
+    }
+
+    .counterexample-column-header {
+      text-align: left;
+    }
+
   `, [statusColors]);
 
   return (
