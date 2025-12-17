@@ -10,8 +10,41 @@ interface ParsedState {
 }
 type Trace = ParsedState[];
 
+type ViolationKind = "safety_failure" | "deadlock";
+
+interface EarlyTerminationCondition {
+  kind: "found_violating_state" | "deadlock_occurred" | "reached_depth_bound";
+  depth?: number;
+}
+
+interface TerminationReason {
+  kind: "explored_all_reachable_states" | "early_termination";
+  condition?: EarlyTerminationCondition;
+}
+
+interface TraceData {
+  theory: string;
+  states: Array<{
+    index: number;
+    fields: Record<string, unknown>;
+    transition: unknown;
+  }>;
+}
+
+type ModelCheckingResult =
+  | {
+      result: "found_violation";
+      violation_kind: ViolationKind;
+      trace: TraceData | null;
+    }
+  | {
+      result: "no_violation_found";
+      explored_states: number;
+      termination_reason: TerminationReason;
+    };
+
 interface ModelCheckerViewProps {
-  trace: Trace;           // ← Directly pass the parsed JSON (ParsedState[])
+  result: ModelCheckingResult;
   layout?: "vertical" | "horizontal";
 }
 
@@ -293,8 +326,8 @@ const KVRow: React.FC<{ k: string; v: unknown; changeInfo?: ChangeInfo }> = ({
   // Highlight the row if there's any change (array or full)
   const hasChange = changeInfo?.type === 'full' || changeInfo?.type === 'array';
 
-  // Automatically expand if there's a change, otherwise collapse if collapsible
-  const [expanded, setExpanded] = React.useState(!collapsible || hasChange);
+  // Start expanded by default
+  const [expanded, setExpanded] = React.useState(true);
 
   // For array changes, pass the indices to the rendering function ONLY when expanded
   const changedIndices =
@@ -345,7 +378,7 @@ const StateCard: React.FC<{
       <div className="state-header" onClick={() => setOpen((o) => !o)}>
         <div className="state-title">
           <span className="action-chip" title={st.tag ?? ''}>
-            {st.tag ? dequalify(st.tag) : '(no action)'}
+            {st.tag || '(no action)'}
           </span>
           <span className="state-id">(index: {st.index})</span>
         </div>
@@ -365,8 +398,129 @@ const StateCard: React.FC<{
   );
 };
 
+/** Collapsible section for displaying theory info */
+const TheorySection: React.FC<{ theory: string }> = ({ theory }) => {
+  const [expanded, setExpanded] = React.useState(false);
+
+  return (
+    <div className="theory-section">
+      <div className="theory-header" onClick={() => setExpanded((e) => !e)}>
+        <span className="theory-toggle">{expanded ? "▼" : "▶"}</span>
+        <span className="theory-label">Theory</span>
+      </div>
+      {expanded && (
+        <div className="theory-content">
+          <code>{theory}</code>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/** Header showing the result status with appropriate icon */
+const ResultHeader: React.FC<{
+  resultType: "found_violation" | "no_violation_found";
+  violationKind?: ViolationKind;
+  exploredStates?: number;
+  terminationReason?: TerminationReason;
+}> = ({ resultType, violationKind, exploredStates, terminationReason }) => {
+  if (resultType === "found_violation") {
+    const icon = violationKind === "deadlock" ? "🔒" : "⚠️";
+    const label = violationKind === "deadlock" ? "Deadlock Detected" : "Safety Violation Found";
+    return (
+      <div className="result-header result-violation">
+        <span className="result-icon">{icon}</span>
+        <span className="result-label">{label}</span>
+      </div>
+    );
+  }
+
+  // no_violation_found
+  const getTerminationTextWithCount = (reason: TerminationReason | undefined, count: number): string => {
+    if (!reason) return `Explored ${count} states`;
+    if (reason.kind === "explored_all_reachable_states") {
+      return `Explored all reachable states (${count})`;
+    }
+    if (reason.kind === "early_termination" && reason.condition) {
+      switch (reason.condition.kind) {
+        case "found_violating_state":
+          return `Stopped: found violating state (explored ${count} states)`;
+        case "deadlock_occurred":
+          return `Stopped: deadlock occurred (explored ${count} states)`;
+        case "reached_depth_bound":
+          return `Reached depth bound ${reason.condition.depth} (explored ${count} states)`;
+        default:
+          return `Early termination (explored ${count} states)`;
+      }
+    }
+    return `Explored ${count} states`;
+  };
+
+  return (
+    <div className="result-header result-success">
+      <span className="result-icon">✓</span>
+      <span className="result-label">No Violation Found</span>
+      <div className="result-details">
+        <span>{getTerminationTextWithCount(terminationReason, exploredStates ?? 0)}</span>
+      </div>
+    </div>
+  );
+};
+
+/** Format a transition object into a readable string like "action_name (arg1 = val1, arg2 = val2)" */
+function formatTransition(transition: unknown): string {
+  if (typeof transition === "string") {
+    return transition;
+  }
+
+  if (typeof transition === "object" && transition !== null) {
+    const obj = transition as Record<string, unknown>;
+    const keys = Object.keys(obj);
+
+    if (keys.length === 1) {
+      // Single key like {"_pre_check_lock": {"self": "0"}}
+      let actionName = keys[0];
+      // Remove leading underscore if present
+      if (actionName.startsWith("_")) {
+        actionName = actionName.slice(1);
+      }
+
+      const args = obj[keys[0]];
+      if (typeof args === "object" && args !== null && !Array.isArray(args)) {
+        const argObj = args as Record<string, unknown>;
+        const argKeys = Object.keys(argObj);
+        if (argKeys.length > 0) {
+          const formatValue = (v: unknown): string => {
+            if (typeof v === "string") return v;
+            if (typeof v === "number" || typeof v === "boolean") return String(v);
+            return JSON.stringify(v);
+          };
+          const argStr = argKeys
+            .map((k) => `${k} = ${formatValue(argObj[k])}`)
+            .join(", ");
+          return `${actionName}(${argStr})`;
+        }
+      }
+
+      return actionName;
+    }
+  }
+
+  // Fallback to JSON stringify
+  return JSON.stringify(transition);
+}
+
+/** Helper to convert TraceData states to ParsedState format */
+function traceDataToStates(traceData: TraceData): ParsedState[] {
+  return traceData.states.map((st) => ({
+    index: st.index,
+    tag: formatTransition(st.transition),
+    fields: st.fields,
+  }));
+}
+
 const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
-  trace,
+  result,
   layout = "vertical",
 }) => {
   const isVertical = layout === "vertical";
@@ -519,23 +673,117 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
     }
     .kv-content { display: block; }
     .action-chip { cursor: help; }
+    .result-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      margin: 8px;
+      border-radius: 6px;
+      font-weight: 600;
+      flex-wrap: wrap;
+    }
+    .result-violation {
+      background: var(--vscode-inputValidation-errorBackground);
+      border: 1px solid var(--vscode-inputValidation-errorBorder);
+      color: var(--vscode-inputValidation-errorForeground, var(--vscode-foreground));
+    }
+    .result-success {
+      background: var(--vscode-inputValidation-infoBackground);
+      border: 1px solid var(--vscode-inputValidation-infoBorder);
+      color: var(--vscode-inputValidation-infoForeground, var(--vscode-foreground));
+    }
+    .result-icon { font-size: 18px; }
+    .result-label { font-size: 14px; }
+    .result-details {
+      width: 100%;
+      font-size: 12px;
+      font-weight: normal;
+      color: var(--vscode-descriptionForeground);
+      margin-top: 4px;
+    }
+    .theory-section {
+      margin: 8px;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      background: var(--vscode-editorWidget-background);
+    }
+    .theory-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .theory-toggle {
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+    }
+    .theory-label {
+      color: var(--vscode-foreground);
+    }
+    .theory-content {
+      padding: 8px 12px;
+      border-top: 1px solid var(--vscode-panel-border);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
   `;
+
+  // Handle the two result types
+  if (result.result === "no_violation_found") {
+    return (
+      <>
+        <style>{styles}</style>
+        <div className="mc-root">
+          <ResultHeader
+            resultType="no_violation_found"
+            exploredStates={result.explored_states}
+            terminationReason={result.termination_reason}
+          />
+        </div>
+      </>
+    );
+  }
+
+  // result.result === "found_violation"
+  const trace = result.trace ? traceDataToStates(result.trace) : [];
+  const theory = result.trace?.theory;
 
   return (
     <>
       <style>{styles}</style>
       <div className="mc-root">
-        <div className={`mc-trace ${isVertical ? "vertical" : "horizontal"}`}>
-          {trace.map((s, idx) => {
-            const prev = idx > 0 ? trace[idx - 1].fields : undefined;
-            const changes = diffChanges(prev, s.fields);
-            return <StateCard key={s.index} st={s} changes={changes} />;
-          })}
-        </div>
+        <ResultHeader
+          resultType="found_violation"
+          violationKind={result.violation_kind}
+        />
 
-        <div className="mc-summary">
-          <strong>Summary:</strong> {trace.length} states
-        </div>
+        {theory && <TheorySection theory={theory} />}
+
+        {trace.length > 0 ? (
+          <>
+            <div className={`mc-trace ${isVertical ? "vertical" : "horizontal"}`}>
+              {trace.map((s: ParsedState, idx: number) => {
+                const prev = idx > 0 ? trace[idx - 1].fields : undefined;
+                const changes = diffChanges(prev, s.fields);
+                return <StateCard key={s.index} st={s} changes={changes} />;
+              })}
+            </div>
+
+            <div className="mc-summary">
+              <strong>Summary:</strong> {trace.length} states in trace
+            </div>
+          </>
+        ) : (
+          <div className="mc-summary">
+            <strong>No trace available</strong>
+          </div>
+        )}
       </div>
     </>
   );

@@ -3,69 +3,443 @@ import ProofWidgets.Component.TraceDisplay
 section
 open Lean ProofWidgets
 
-def exampleTrace : Json := json% [{"index": 0,
-  "fields":
-  {"waker": [["0", "0"], ["1", "0"], ["2", "0"]],
-   "wait_queue_wakers": [],
-   "stack": [["0", []], ["1", []], ["2", []]],
-   "pc":
-   [["0", "Mutex.states.start"],
-    ["1", "Mutex.states.start"],
-    ["2", "Mutex.states.start"]],
-   "locked": false,
-   "has_woken": []},
-  "tag": "after_init"},
- {"index": 1,
-  "fields":
-  {"waker": [["0", "0"], ["1", "0"], ["2", "0"]],
-   "wait_queue_wakers": [],
-   "stack":
-   [["0", [{"waker": "0", "pc": "Mutex.states.cs"}]], ["1", []], ["2", []]],
-   "pc":
-   [["0", "Mutex.states.pre_check_lock"],
-    ["1", "Mutex.states.start"],
-    ["2", "Mutex.states.start"]],
-   "locked": false,
-   "has_woken": []},
-  "tag": "Mutex.Label._start 0"},
- {"index": 2,
-  "fields":
-  {"waker": [["0", "0"], ["1", "0"], ["2", "0"]],
-   "wait_queue_wakers": [],
-   "stack": [["0", []], ["1", []], ["2", []]],
-   "pc":
-   [["0", "Mutex.states.cs"],
-    ["1", "Mutex.states.start"],
-    ["2", "Mutex.states.start"]],
-   "locked": true,
-   "has_woken": []},
-  "tag": "Mutex.Label._pre_check_lock 0"},
- {"index": 3,
-  "fields":
-  {"waker": [["0", "0"], ["1", "0"], ["2", "0"]],
-   "wait_queue_wakers": [],
-   "stack":
-   [["0", []], ["1", [{"waker": "0", "pc": "Mutex.states.cs"}]], ["2", []]],
-   "pc":
-   [["0", "Mutex.states.cs"],
-    ["1", "Mutex.states.pre_check_lock"],
-    ["2", "Mutex.states.start"]],
-   "locked": true,
-   "has_woken": []},
-  "tag": "Mutex.Label._start 1"},
- {"index": 4,
-  "fields":
-  {"waker": [["0", "0"], ["1", "0"], ["2", "0"]],
-   "wait_queue_wakers": [],
-   "stack":
-   [["0", []], ["1", [{"waker": "0", "pc": "Mutex.states.cs"}]], ["2", []]],
-   "pc":
-   [["0", "Mutex.states.cs"],
-    ["1", "Mutex.states.prepare_wait_util"],
-    ["2", "Mutex.states.start"]],
-   "locked": true,
-   "has_woken": []},
-  "tag": "Mutex.Label._pre_check_lock 1"}]
+def exampleNoViolation : Json := json% {"termination_reason": {"kind": "explored_all_reachable_states"},
+ "result": "no_violation_found",
+ "explored_states": 1024}
 
 
-#displayTrace exampleTrace
+#displayTrace exampleNoViolation
+
+def exampleViolation : Json := json% {"violation_kind": "safety_failure",
+ "trace":
+ {"theory": "{ none := 0 }",
+  "states":
+  [{"transition": "after_init",
+    "index": 0,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"]],
+     "wait_queue_wakers": [],
+     "stack": [["0", []], ["1", []]],
+     "pc": [["0", "Mutex.states_IndT.start"], ["1", "Mutex.states_IndT.start"]],
+     "locked": false,
+     "has_woken": []}},
+   {"transition": {"_start": {"self": "0"}},
+    "index": 1,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"]],
+     "wait_queue_wakers": [],
+     "stack":
+     [["0", [{"waker": "0", "pc": "Mutex.states_IndT.cs"}]], ["1", []]],
+     "pc":
+     [["0", "Mutex.states_IndT.pre_check_lock"],
+      ["1", "Mutex.states_IndT.start"]],
+     "locked": false,
+     "has_woken": []}},
+   {"transition": {"_pre_check_lock": {"self": "0"}},
+    "index": 2,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"]],
+     "wait_queue_wakers": [],
+     "stack": [["0", []], ["1", []]],
+     "pc": [["0", "Mutex.states_IndT.cs"], ["1", "Mutex.states_IndT.start"]],
+     "locked": true,
+     "has_woken": []}},
+   {"transition": {"_start": {"self": "1"}},
+    "index": 3,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"]],
+     "wait_queue_wakers": [],
+     "stack":
+     [["0", []], ["1", [{"waker": "0", "pc": "Mutex.states_IndT.cs"}]]],
+     "pc":
+     [["0", "Mutex.states_IndT.cs"], ["1", "Mutex.states_IndT.pre_check_lock"]],
+     "locked": true,
+     "has_woken": []}},
+   {"transition": {"_pre_check_lock": {"self": "1"}},
+    "index": 4,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"]],
+     "wait_queue_wakers": [],
+     "stack":
+     [["0", []], ["1", [{"waker": "0", "pc": "Mutex.states_IndT.cs"}]]],
+     "pc":
+     [["0", "Mutex.states_IndT.cs"],
+      ["1", "Mutex.states_IndT.prepare_wait_util"]],
+     "locked": true,
+     "has_woken": []}},
+   {"transition": {"_prepare_wait_util": {"self": "1"}},
+    "index": 5,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"]],
+     "wait_queue_wakers": [],
+     "stack":
+     [["0", []], ["1", [{"waker": "0", "pc": "Mutex.states_IndT.cs"}]]],
+     "pc":
+     [["0", "Mutex.states_IndT.cs"], ["1", "Mutex.states_IndT.wait_until"]],
+     "locked": false,
+     "has_woken": []}},
+   {"transition": {"_wait_until": {"self": "1"}},
+    "index": 6,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"]],
+     "wait_queue_wakers": [],
+     "stack":
+     [["0", []], ["1", [{"waker": "0", "pc": "Mutex.states_IndT.cs"}]]],
+     "pc":
+     [["0", "Mutex.states_IndT.cs"], ["1", "Mutex.states_IndT.enqueue_waker"]],
+     "locked": false,
+     "has_woken": []}},
+   {"transition": {"_enqueue_waker": {"self": "1"}},
+    "index": 7,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"]],
+     "wait_queue_wakers": ["1"],
+     "stack":
+     [["0", []], ["1", [{"waker": "0", "pc": "Mutex.states_IndT.cs"}]]],
+     "pc":
+     [["0", "Mutex.states_IndT.cs"], ["1", "Mutex.states_IndT.check_lock"]],
+     "locked": false,
+     "has_woken": []}},
+   {"transition": {"_check_lock": {"self": "1"}},
+    "index": 8,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"]],
+     "wait_queue_wakers": ["1"],
+     "stack": [["0", []], ["1", []]],
+     "pc": [["0", "Mutex.states_IndT.cs"], ["1", "Mutex.states_IndT.cs"]],
+     "locked": true,
+     "has_woken": ["1"]}}]},
+ "result": "found_violation"}
+
+
+#displayTrace exampleViolation
+
+
+def exampleDeadlock : Json := json% {"violation_kind": "deadlock",
+ "trace":
+ {"theory": "{ none := 0 }",
+  "states":
+  [{"transition": "after_init",
+    "index": 0,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"], ["2", "0"]],
+     "wait_queue_wakers": [],
+     "stack_waker": [["0", []], ["1", []], ["2", []]],
+     "stack_pc": [["0", []], ["1", []], ["2", []]],
+     "pc":
+     [["0", "Mutex.states_IndT.start"],
+      ["1", "Mutex.states_IndT.start"],
+      ["2", "Mutex.states_IndT.start"]],
+     "locked": false,
+     "has_woken": []}},
+   {"transition": {"_start": {"self": "0"}},
+    "index": 1,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"], ["2", "0"]],
+     "wait_queue_wakers": [],
+     "stack_waker": [["0", ["0"]], ["1", []], ["2", []]],
+     "stack_pc": [["0", ["Mutex.states_IndT.cs"]], ["1", []], ["2", []]],
+     "pc":
+     [["0", "Mutex.states_IndT.pre_check_lock"],
+      ["1", "Mutex.states_IndT.start"],
+      ["2", "Mutex.states_IndT.start"]],
+     "locked": false,
+     "has_woken": []}},
+   {"transition": {"_start": {"self": "1"}},
+    "index": 2,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"], ["2", "0"]],
+     "wait_queue_wakers": [],
+     "stack_waker": [["0", ["0"]], ["1", ["0"]], ["2", []]],
+     "stack_pc":
+     [["0", ["Mutex.states_IndT.cs"]],
+      ["1", ["Mutex.states_IndT.cs"]],
+      ["2", []]],
+     "pc":
+     [["0", "Mutex.states_IndT.pre_check_lock"],
+      ["1", "Mutex.states_IndT.pre_check_lock"],
+      ["2", "Mutex.states_IndT.start"]],
+     "locked": false,
+     "has_woken": []}},
+   {"transition": {"_start": {"self": "2"}},
+    "index": 3,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"], ["2", "0"]],
+     "wait_queue_wakers": [],
+     "stack_waker": [["0", ["0"]], ["1", ["0"]], ["2", ["0"]]],
+     "stack_pc":
+     [["0", ["Mutex.states_IndT.cs"]],
+      ["1", ["Mutex.states_IndT.cs"]],
+      ["2", ["Mutex.states_IndT.cs"]]],
+     "pc":
+     [["0", "Mutex.states_IndT.pre_check_lock"],
+      ["1", "Mutex.states_IndT.pre_check_lock"],
+      ["2", "Mutex.states_IndT.pre_check_lock"]],
+     "locked": false,
+     "has_woken": []}},
+   {"transition": {"_pre_check_lock": {"self": "0"}},
+    "index": 4,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"], ["2", "0"]],
+     "wait_queue_wakers": [],
+     "stack_waker": [["0", []], ["1", ["0"]], ["2", ["0"]]],
+     "stack_pc":
+     [["0", []],
+      ["1", ["Mutex.states_IndT.cs"]],
+      ["2", ["Mutex.states_IndT.cs"]]],
+     "pc":
+     [["0", "Mutex.states_IndT.cs"],
+      ["1", "Mutex.states_IndT.pre_check_lock"],
+      ["2", "Mutex.states_IndT.pre_check_lock"]],
+     "locked": true,
+     "has_woken": []}},
+   {"transition": {"_pre_check_lock": {"self": "1"}},
+    "index": 5,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"], ["2", "0"]],
+     "wait_queue_wakers": [],
+     "stack_waker": [["0", []], ["1", ["0"]], ["2", ["0"]]],
+     "stack_pc":
+     [["0", []],
+      ["1", ["Mutex.states_IndT.cs"]],
+      ["2", ["Mutex.states_IndT.cs"]]],
+     "pc":
+     [["0", "Mutex.states_IndT.cs"],
+      ["1", "Mutex.states_IndT.wait_until"],
+      ["2", "Mutex.states_IndT.pre_check_lock"]],
+     "locked": true,
+     "has_woken": []}},
+   {"transition": {"_pre_check_lock": {"self": "2"}},
+    "index": 6,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"], ["2", "0"]],
+     "wait_queue_wakers": [],
+     "stack_waker": [["0", []], ["1", ["0"]], ["2", ["0"]]],
+     "stack_pc":
+     [["0", []],
+      ["1", ["Mutex.states_IndT.cs"]],
+      ["2", ["Mutex.states_IndT.cs"]]],
+     "pc":
+     [["0", "Mutex.states_IndT.cs"],
+      ["1", "Mutex.states_IndT.wait_until"],
+      ["2", "Mutex.states_IndT.wait_until"]],
+     "locked": true,
+     "has_woken": []}},
+   {"transition": {"_wait_until": {"self": "1"}},
+    "index": 7,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"], ["2", "0"]],
+     "wait_queue_wakers": [],
+     "stack_waker": [["0", []], ["1", ["0"]], ["2", ["0"]]],
+     "stack_pc":
+     [["0", []],
+      ["1", ["Mutex.states_IndT.cs"]],
+      ["2", ["Mutex.states_IndT.cs"]]],
+     "pc":
+     [["0", "Mutex.states_IndT.cs"],
+      ["1", "Mutex.states_IndT.enqueue_waker"],
+      ["2", "Mutex.states_IndT.wait_until"]],
+     "locked": true,
+     "has_woken": []}},
+   {"transition": {"_wait_until": {"self": "2"}},
+    "index": 8,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"], ["2", "0"]],
+     "wait_queue_wakers": [],
+     "stack_waker": [["0", []], ["1", ["0"]], ["2", ["0"]]],
+     "stack_pc":
+     [["0", []],
+      ["1", ["Mutex.states_IndT.cs"]],
+      ["2", ["Mutex.states_IndT.cs"]]],
+     "pc":
+     [["0", "Mutex.states_IndT.cs"],
+      ["1", "Mutex.states_IndT.enqueue_waker"],
+      ["2", "Mutex.states_IndT.enqueue_waker"]],
+     "locked": true,
+     "has_woken": []}},
+   {"transition": {"_cs": {"self": "0"}},
+    "index": 9,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"], ["2", "0"]],
+     "wait_queue_wakers": [],
+     "stack_waker": [["0", ["0"]], ["1", ["0"]], ["2", ["0"]]],
+     "stack_pc":
+     [["0", ["Mutex.states_IndT.Done"]],
+      ["1", ["Mutex.states_IndT.cs"]],
+      ["2", ["Mutex.states_IndT.cs"]]],
+     "pc":
+     [["0", "Mutex.states_IndT.release_lock"],
+      ["1", "Mutex.states_IndT.enqueue_waker"],
+      ["2", "Mutex.states_IndT.enqueue_waker"]],
+     "locked": true,
+     "has_woken": []}},
+   {"transition": {"_release_lock": {"self": "0"}},
+    "index": 10,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"], ["2", "0"]],
+     "wait_queue_wakers": [],
+     "stack_waker": [["0", ["0"]], ["1", ["0"]], ["2", ["0"]]],
+     "stack_pc":
+     [["0", ["Mutex.states_IndT.Done"]],
+      ["1", ["Mutex.states_IndT.cs"]],
+      ["2", ["Mutex.states_IndT.cs"]]],
+     "pc":
+     [["0", "Mutex.states_IndT.wake_one"],
+      ["1", "Mutex.states_IndT.enqueue_waker"],
+      ["2", "Mutex.states_IndT.enqueue_waker"]],
+     "locked": false,
+     "has_woken": []}},
+   {"transition": {"_wake_one": {"self": "0"}},
+    "index": 11,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"], ["2", "0"]],
+     "wait_queue_wakers": [],
+     "stack_waker": [["0", []], ["1", ["0"]], ["2", ["0"]]],
+     "stack_pc":
+     [["0", []],
+      ["1", ["Mutex.states_IndT.cs"]],
+      ["2", ["Mutex.states_IndT.cs"]]],
+     "pc":
+     [["0", "Mutex.states_IndT.Done"],
+      ["1", "Mutex.states_IndT.enqueue_waker"],
+      ["2", "Mutex.states_IndT.enqueue_waker"]],
+     "locked": false,
+     "has_woken": []}},
+   {"transition": {"_enqueue_waker": {"self": "1"}},
+    "index": 12,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"], ["2", "0"]],
+     "wait_queue_wakers": ["1"],
+     "stack_waker": [["0", []], ["1", ["0"]], ["2", ["0"]]],
+     "stack_pc":
+     [["0", []],
+      ["1", ["Mutex.states_IndT.cs"]],
+      ["2", ["Mutex.states_IndT.cs"]]],
+     "pc":
+     [["0", "Mutex.states_IndT.Done"],
+      ["1", "Mutex.states_IndT.check_lock"],
+      ["2", "Mutex.states_IndT.enqueue_waker"]],
+     "locked": false,
+     "has_woken": []}},
+   {"transition": {"_enqueue_waker": {"self": "2"}},
+    "index": 13,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"], ["2", "0"]],
+     "wait_queue_wakers": ["1", "2"],
+     "stack_waker": [["0", []], ["1", ["0"]], ["2", ["0"]]],
+     "stack_pc":
+     [["0", []],
+      ["1", ["Mutex.states_IndT.cs"]],
+      ["2", ["Mutex.states_IndT.cs"]]],
+     "pc":
+     [["0", "Mutex.states_IndT.Done"],
+      ["1", "Mutex.states_IndT.check_lock"],
+      ["2", "Mutex.states_IndT.check_lock"]],
+     "locked": false,
+     "has_woken": []}},
+   {"transition": {"_check_lock": {"self": "1"}},
+    "index": 14,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"], ["2", "0"]],
+     "wait_queue_wakers": ["1", "2"],
+     "stack_waker": [["0", []], ["1", []], ["2", ["0"]]],
+     "stack_pc": [["0", []], ["1", []], ["2", ["Mutex.states_IndT.cs"]]],
+     "pc":
+     [["0", "Mutex.states_IndT.Done"],
+      ["1", "Mutex.states_IndT.cs"],
+      ["2", "Mutex.states_IndT.check_lock"]],
+     "locked": true,
+     "has_woken": []}},
+   {"transition": {"_check_lock": {"self": "2"}},
+    "index": 15,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"], ["2", "0"]],
+     "wait_queue_wakers": ["1", "2"],
+     "stack_waker": [["0", []], ["1", []], ["2", ["0"]]],
+     "stack_pc": [["0", []], ["1", []], ["2", ["Mutex.states_IndT.cs"]]],
+     "pc":
+     [["0", "Mutex.states_IndT.Done"],
+      ["1", "Mutex.states_IndT.cs"],
+      ["2", "Mutex.states_IndT.check_has_woken"]],
+     "locked": true,
+     "has_woken": []}},
+   {"transition": {"_cs": {"self": "1"}},
+    "index": 16,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"], ["2", "0"]],
+     "wait_queue_wakers": ["1", "2"],
+     "stack_waker": [["0", []], ["1", ["0"]], ["2", ["0"]]],
+     "stack_pc":
+     [["0", []],
+      ["1", ["Mutex.states_IndT.Done"]],
+      ["2", ["Mutex.states_IndT.cs"]]],
+     "pc":
+     [["0", "Mutex.states_IndT.Done"],
+      ["1", "Mutex.states_IndT.release_lock"],
+      ["2", "Mutex.states_IndT.check_has_woken"]],
+     "locked": true,
+     "has_woken": []}},
+   {"transition": {"_release_lock": {"self": "1"}},
+    "index": 17,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"], ["2", "0"]],
+     "wait_queue_wakers": ["1", "2"],
+     "stack_waker": [["0", []], ["1", ["0"]], ["2", ["0"]]],
+     "stack_pc":
+     [["0", []],
+      ["1", ["Mutex.states_IndT.Done"]],
+      ["2", ["Mutex.states_IndT.cs"]]],
+     "pc":
+     [["0", "Mutex.states_IndT.Done"],
+      ["1", "Mutex.states_IndT.wake_one"],
+      ["2", "Mutex.states_IndT.check_has_woken"]],
+     "locked": false,
+     "has_woken": []}},
+   {"transition": {"_wake_one": {"self": "1"}},
+    "index": 18,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"], ["2", "0"]],
+     "wait_queue_wakers": ["1", "2"],
+     "stack_waker": [["0", []], ["1", ["0"]], ["2", ["0"]]],
+     "stack_pc":
+     [["0", []],
+      ["1", ["Mutex.states_IndT.Done"]],
+      ["2", ["Mutex.states_IndT.cs"]]],
+     "pc":
+     [["0", "Mutex.states_IndT.Done"],
+      ["1", "Mutex.states_IndT.wake_one_loop"],
+      ["2", "Mutex.states_IndT.check_has_woken"]],
+     "locked": false,
+     "has_woken": []}},
+   {"transition": {"_wake_one_loop": {"self": "1"}},
+    "index": 19,
+    "fields":
+    {"waker": [["0", "0"], ["1", "1"], ["2", "0"]],
+     "wait_queue_wakers": ["2"],
+     "stack_waker": [["0", []], ["1", ["0"]], ["2", ["0"]]],
+     "stack_pc":
+     [["0", []],
+      ["1", ["Mutex.states_IndT.Done"]],
+      ["2", ["Mutex.states_IndT.cs"]]],
+     "pc":
+     [["0", "Mutex.states_IndT.Done"],
+      ["1", "Mutex.states_IndT.wake_up"],
+      ["2", "Mutex.states_IndT.check_has_woken"]],
+     "locked": false,
+     "has_woken": []}},
+   {"transition": {"_wake_up": {"self": "1"}},
+    "index": 20,
+    "fields":
+    {"waker": [["0", "0"], ["1", "0"], ["2", "0"]],
+     "wait_queue_wakers": ["2"],
+     "stack_waker": [["0", []], ["1", []], ["2", ["0"]]],
+     "stack_pc": [["0", []], ["1", []], ["2", ["Mutex.states_IndT.cs"]]],
+     "pc":
+     [["0", "Mutex.states_IndT.Done"],
+      ["1", "Mutex.states_IndT.Done"],
+      ["2", "Mutex.states_IndT.check_has_woken"]],
+     "locked": false,
+     "has_woken": ["1"]}}]},
+ "result": "found_violation"}
+
+ #displayTrace exampleDeadlock
