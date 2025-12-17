@@ -121,29 +121,38 @@ function deepEqual(a: unknown, b: unknown): boolean {
   return false;
 }
 
-/** For arrays, compute which indices have changed between prev and curr */
-function diffArrayIndices(prev: unknown[], curr: unknown[]): Set<number> {
-  const changed = new Set<number>();
-  const maxLen = Math.max(prev.length, curr.length);
-
-  for (let i = 0; i < maxLen; i++) {
-    if (i >= prev.length || i >= curr.length) {
-      // Element was added or removed
-      changed.add(i);
-    } else if (!deepEqual(prev[i], curr[i])) {
-      // Element changed
-      changed.add(i);
-    }
-  }
-
-  return changed;
-}
-
 /** Value change info: either the whole value changed, or specific array indices changed */
 type ChangeInfo =
   | { type: 'full' }  // Entire value changed (non-array or structural change)
-  | { type: 'array'; changedIndices: Set<number> }  // Array with specific elements changed
+  | { type: 'array'; changedIndices: Set<number>; removedElements: unknown[] }  // Array with specific elements changed and removed items
   | { type: 'none' };  // No change
+
+/** Find elements in prev that are not in curr (content-based comparison) */
+function findRemovedElements(prev: unknown[], curr: unknown[]): unknown[] {
+  const removed: unknown[] = [];
+  for (const prevEl of prev) {
+    // Check if this element exists anywhere in curr
+    const existsInCurr = curr.some(currEl => deepEqual(prevEl, currEl));
+    if (!existsInCurr) {
+      removed.push(prevEl);
+    }
+  }
+  return removed;
+}
+
+/** Find indices in curr that contain newly added elements (not in prev) */
+function findAddedIndices(prev: unknown[], curr: unknown[]): Set<number> {
+  const added = new Set<number>();
+  for (let i = 0; i < curr.length; i++) {
+    const currEl = curr[i];
+    // Check if this element existed anywhere in prev
+    const existedInPrev = prev.some(prevEl => deepEqual(prevEl, currEl));
+    if (!existedInPrev) {
+      added.add(i);
+    }
+  }
+  return added;
+}
 
 /** Compute change information for each field */
 function diffChanges(
@@ -174,9 +183,12 @@ function diffChanges(
 
     // Check if both are arrays
     if (Array.isArray(prevVal) && Array.isArray(currVal)) {
-      const changedIndices = diffArrayIndices(prevVal, currVal);
-      if (changedIndices.size > 0) {
-        changes.set(k, { type: 'array', changedIndices });
+      // Use content-based diff: find added elements (by index in curr) and removed elements
+      const addedIndices = findAddedIndices(prevVal, currVal);
+      const removedElements = findRemovedElements(prevVal, currVal);
+
+      if (addedIndices.size > 0 || removedElements.length > 0) {
+        changes.set(k, { type: 'array', changedIndices: addedIndices, removedElements });
       }
     } else {
       // Non-array changed, or type changed between array and non-array
@@ -247,9 +259,38 @@ function renderRowFromInnerArray(e: unknown, changedIndices?: Set<number>, index
   return renderValue(e);
 }
 
+/** Render a single removed element inline */
+function renderRemovedElement(e: unknown, index: number): React.ReactNode {
+  if (Array.isArray(e)) {
+    // Check if this is a flat tuple (all elements are primitives, not arrays)
+    const isFlatTuple = e.every(el => !Array.isArray(el));
+    if (isFlatTuple) {
+      const parts: React.ReactNode[] = [];
+      e.forEach((el, i) => {
+        parts.push(renderValueInline(el));
+        if (i < e.length - 1) parts.push(', ');
+      });
+      return <span key={`removed-${index}`} className="removed-element"><code>({parts})</code></span>;
+    } else {
+      return <span key={`removed-${index}`} className="removed-element">{renderValueInline(e)}</span>;
+    }
+  }
+  return <span key={`removed-${index}`} className="removed-element">{renderValueInline(e)}</span>;
+}
+
 /** Original: Inline rendering of flat arrays */
-function renderInlineArray(arr: unknown[], changedIndices?: Set<number>): React.ReactNode {
+function renderInlineArray(arr: unknown[], changedIndices?: Set<number>, removedElements?: unknown[]): React.ReactNode {
   const parts: React.ReactNode[] = [];
+
+  // First, show removed elements with strikethrough
+  if (removedElements && removedElements.length > 0) {
+    removedElements.forEach((e, i) => {
+      parts.push(<span key={`removed-${i}`} className="removed-element">{renderValueInline(e)}</span>);
+      parts.push(<span key={`removed-comma-${i}`}>, </span>);
+    });
+  }
+
+  // Then show current elements
   arr.forEach((e, i) => {
     const isChanged = changedIndices !== undefined && changedIndices.has(i);
     const element = renderValueInline(e);        // Use inline version to avoid converting to <ul>
@@ -259,16 +300,26 @@ function renderInlineArray(arr: unknown[], changedIndices?: Set<number>): React.
   return <code>[{parts}]</code>;
 }
 
-function renderValue(v: unknown, changedIndices?: Set<number>): React.ReactNode {
+function renderValue(v: unknown, changedIndices?: Set<number>, removedElements?: unknown[]): React.ReactNode {
   if (Array.isArray(v)) {
-    if (v.length === 0) return <code>[]</code>;
+    // Handle empty array with possible removals
+    if (v.length === 0 && (!removedElements || removedElements.length === 0)) {
+      return <code>[]</code>;
+    }
 
     // ★ Key rule: If the array contains inner arrays, render each inner array on a separate line
     // Inner arrays that are flat tuples will be rendered with parentheses by renderRowFromInnerArray
     const hasInnerArray = v.some(Array.isArray);
-    if (hasInnerArray) {
+    const removedHasInnerArray = removedElements?.some(Array.isArray) ?? false;
+
+    if (hasInnerArray || removedHasInnerArray) {
       return (
         <ul className="list">
+          {/* First show removed elements */}
+          {removedElements?.map((e, i) => (
+            <li key={`removed-${i}`}>{renderRemovedElement(e, i)}</li>
+          ))}
+          {/* Then show current elements */}
           {v.map((e, i) => (
             <li key={i}>{renderRowFromInnerArray(e, changedIndices, i)}</li>
           ))}
@@ -277,7 +328,7 @@ function renderValue(v: unknown, changedIndices?: Set<number>): React.ReactNode 
     }
 
     // Top-level flat arrays are rendered with brackets [a, b, c]
-    return renderInlineArray(v, changedIndices);
+    return renderInlineArray(v, changedIndices, removedElements);
   }
 
   if (typeof v === 'object' && v !== null) {
@@ -321,10 +372,11 @@ function previewValue(v: unknown): string {
   return String(v);
 }
 
-const KVRow: React.FC<{ k: string; v: unknown; changeInfo?: ChangeInfo }> = ({
+const KVRow: React.FC<{ k: string; v: unknown; changeInfo?: ChangeInfo; showRemovals?: boolean }> = ({
   k,
   v,
   changeInfo,
+  showRemovals = false,
 }) => {
   const collapsible = isCollapsibleValue(v);
 
@@ -334,9 +386,12 @@ const KVRow: React.FC<{ k: string; v: unknown; changeInfo?: ChangeInfo }> = ({
   // Start expanded by default
   const [expanded, setExpanded] = React.useState(true);
 
-  // For array changes, pass the indices to the rendering function ONLY when expanded
+  // For array changes, pass the indices and removed elements to the rendering function ONLY when expanded
   const changedIndices =
     expanded && changeInfo?.type === 'array' ? changeInfo.changedIndices : undefined;
+  // Only show removed elements if showRemovals is enabled
+  const removedElements =
+    expanded && showRemovals && changeInfo?.type === 'array' ? changeInfo.removedElements : undefined;
 
   return (
     <div
@@ -363,7 +418,7 @@ const KVRow: React.FC<{ k: string; v: unknown; changeInfo?: ChangeInfo }> = ({
         )}
 
         <div className="kv-content">
-          {expanded ? renderValue(v, changedIndices) : <code>{previewValue(v)}</code>}
+          {expanded ? renderValue(v, changedIndices, removedElements) : <code>{previewValue(v)}</code>}
         </div>
       </div>
     </div>
@@ -374,7 +429,8 @@ const StateCard: React.FC<{
   st: ParsedState;
   highlighted?: boolean;
   changes?: Map<string, ChangeInfo>;
-}> = ({ st, highlighted = false, changes }) => {
+  showRemovals?: boolean;
+}> = ({ st, highlighted = false, changes, showRemovals = false }) => {
   const [open, setOpen] = React.useState(true);
   const entries = Object.entries(st.fields);
 
@@ -392,7 +448,7 @@ const StateCard: React.FC<{
         <div className="state-body">
           <div className="kv-table">
             {entries.map(([k, v]) => (
-              <KVRow key={k} k={k} v={v} changeInfo={changes?.get(k)} />
+              <KVRow key={k} k={k} v={v} changeInfo={changes?.get(k)} showRemovals={showRemovals} />
             ))}
           </div>
         </div>
@@ -600,6 +656,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
 }) => {
   const isVertical = layout === "vertical";
   const [showRawJson, setShowRawJson] = React.useState(false);
+  const [showRemovals, setShowRemovals] = React.useState(false);
 
   const styles = `
     .mc-root {
@@ -695,11 +752,20 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       color: var(--vscode-editor-foreground);
     }
     .changed-element {
-      background: var(--vscode-editor-findMatchBackground);
+      background: var(--vscode-diffEditor-insertedTextBackground, rgba(0, 255, 0, 0.2));
       border-radius: 3px;
       padding: 2px 4px;
-      box-shadow: 0 0 0 2px var(--vscode-editor-findMatchBorder);
+      box-shadow: 0 0 0 2px var(--vscode-diffEditor-insertedLineBackground, rgba(0, 255, 0, 0.3));
       color: var(--vscode-editor-foreground);
+    }
+    .removed-element {
+      background: var(--vscode-diffEditor-removedTextBackground, rgba(255, 0, 0, 0.2));
+      border-radius: 3px;
+      padding: 2px 4px;
+      box-shadow: 0 0 0 2px var(--vscode-diffEditor-removedLineBackground, rgba(255, 0, 0, 0.3));
+      color: var(--vscode-editor-foreground);
+      text-decoration: line-through;
+      opacity: 0.8;
     }
     .kv-key {
       font-family: var(--mono);
@@ -806,6 +872,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
     .mc-toolbar {
       display: flex;
       justify-content: flex-end;
+      gap: 12px;
       padding: 4px 8px;
     }
     .mc-toggle-link {
@@ -885,6 +952,11 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       <style>{styles}</style>
       <div className="mc-root">
         <div className="mc-toolbar">
+          {!showRawJson && (
+            <button className="mc-toggle-link" onClick={() => setShowRemovals(!showRemovals)}>
+              {showRemovals ? "Hide removals" : "Show removals"}
+            </button>
+          )}
           <button className="mc-toggle-link" onClick={() => setShowRawJson(!showRawJson)}>
             {showRawJson ? "Show formatted" : "Show JSON"}
           </button>
@@ -924,7 +996,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
                   {trace.map((s: ParsedState, idx: number) => {
                     const prev = idx > 0 ? trace[idx - 1].fields : undefined;
                     const changes = diffChanges(prev, s.fields);
-                    return <StateCard key={s.index} st={s} changes={changes} />;
+                    return <StateCard key={s.index} st={s} changes={changes} showRemovals={showRemovals} />;
                   })}
                 </div>
 
