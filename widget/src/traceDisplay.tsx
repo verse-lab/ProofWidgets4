@@ -12,6 +12,11 @@ type Trace = ParsedState[];
 
 type ViolationKind = "safety_failure" | "deadlock";
 
+interface Violation {
+  kind: ViolationKind;
+  violates?: string[]; // Array of violated property names (only present for safety_failure)
+}
+
 interface EarlyTerminationCondition {
   kind: "found_violating_state" | "deadlock_occurred" | "reached_depth_bound";
   depth?: number;
@@ -34,13 +39,18 @@ interface TraceData {
 type ModelCheckingResult =
   | {
       result: "found_violation";
-      violation_kind: ViolationKind;
+      violation: Violation;
       trace: TraceData | null;
     }
   | {
       result: "no_violation_found";
       explored_states: number;
       termination_reason: TerminationReason;
+      trace?: TraceData | null;
+    }
+  | {
+      // Trace-only data without a result (for displaying execution traces)
+      trace: TraceData;
     };
 
 interface ModelCheckerViewProps {
@@ -418,17 +428,22 @@ const TheorySection: React.FC<{ theory: Record<string, unknown> }> = ({ theory }
 /** Header showing the result status with appropriate icon */
 const ResultHeader: React.FC<{
   resultType: "found_violation" | "no_violation_found";
-  violationKind?: ViolationKind;
+  violation?: Violation;
   exploredStates?: number;
   terminationReason?: TerminationReason;
-}> = ({ resultType, violationKind, exploredStates, terminationReason }) => {
-  if (resultType === "found_violation") {
-    const icon = violationKind === "deadlock" ? "🔒" : "⚠️";
-    const label = violationKind === "deadlock" ? "Deadlock Detected" : "Safety Violation Found";
+}> = ({ resultType, violation, exploredStates, terminationReason }) => {
+  if (resultType === "found_violation" && violation) {
+    const icon = violation.kind === "deadlock" ? "🔒" : "⚠️";
+    const label = violation.kind === "deadlock" ? "Deadlock Detected" : "Safety Violation Found";
     return (
       <div className="result-header result-violation">
         <span className="result-icon">{icon}</span>
         <span className="result-label">{label}</span>
+        {violation.kind === "safety_failure" && violation.violates && violation.violates.length > 0 && (
+          <div className="result-details">
+            <strong>Violated properties:</strong> {violation.violates.join(", ")}
+          </div>
+        )}
       </div>
     );
   }
@@ -860,13 +875,10 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
 
   const prettyJson = JSON.stringify(result, null, 2);
 
-  // Extract trace and theory for violation results
-  const trace = result.result === "found_violation" && result.trace
-    ? traceDataToStates(result.trace)
-    : [];
-  const theory: Record<string, unknown> | undefined = result.result === "found_violation"
-    ? result.trace?.theory
-    : undefined;
+  // Extract trace and theory from results (works for all result types)
+  const traceData = result.trace;
+  const trace = traceData ? traceDataToStates(traceData) : [];
+  const theory: Record<string, unknown> | undefined = traceData?.theory;
 
   return (
     <>
@@ -887,41 +899,45 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
           </div>
         ) : (
           <>
-            {result.result === "no_violation_found" ? (
-              <ResultHeader
-                resultType="no_violation_found"
-                exploredStates={result.explored_states}
-                terminationReason={result.termination_reason}
-              />
-            ) : (
+            {'result' in result && (
               <>
-                <ResultHeader
-                  resultType="found_violation"
-                  violationKind={result.violation_kind}
-                />
-
-                {theory && <TheorySection theory={theory} />}
-
-                {trace.length > 0 ? (
-                  <>
-                    <div className={`mc-trace ${isVertical ? "vertical" : "horizontal"}`}>
-                      {trace.map((s: ParsedState, idx: number) => {
-                        const prev = idx > 0 ? trace[idx - 1].fields : undefined;
-                        const changes = diffChanges(prev, s.fields);
-                        return <StateCard key={s.index} st={s} changes={changes} />;
-                      })}
-                    </div>
-
-                    <div className="mc-summary">
-                      <strong>Summary:</strong> {trace.length} states in trace
-                    </div>
-                  </>
+                {result.result === "no_violation_found" ? (
+                  <ResultHeader
+                    resultType="no_violation_found"
+                    exploredStates={result.explored_states}
+                    terminationReason={result.termination_reason}
+                  />
                 ) : (
-                  <div className="mc-summary">
-                    <strong>No trace available</strong>
-                  </div>
+                  <ResultHeader
+                    resultType="found_violation"
+                    violation={result.violation}
+                  />
                 )}
               </>
+            )}
+
+            {theory && <TheorySection theory={theory} />}
+
+            {trace.length > 0 ? (
+              <>
+                <div className={`mc-trace ${isVertical ? "vertical" : "horizontal"}`}>
+                  {trace.map((s: ParsedState, idx: number) => {
+                    const prev = idx > 0 ? trace[idx - 1].fields : undefined;
+                    const changes = diffChanges(prev, s.fields);
+                    return <StateCard key={s.index} st={s} changes={changes} />;
+                  })}
+                </div>
+
+                <div className="mc-summary">
+                  <strong>Summary:</strong> {trace.length} states in trace
+                </div>
+              </>
+            ) : (
+              'result' in result && result.result === "found_violation" && (
+                <div className="mc-summary">
+                  <strong>No trace available</strong>
+                </div>
+              )
             )}
           </>
         )}

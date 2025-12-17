@@ -10,7 +10,8 @@ def exampleNoViolation : Json := json% {"termination_reason": {"kind": "explored
 
 #displayTrace exampleNoViolation
 
-def exampleViolation : Json := json% {"violation_kind": "safety_failure",
+def ringViolation : Json := json% {"violation":
+ {"violates": ["single_leader", "leader_greatest"], "kind": "safety_failure"},
  "trace":
  {"theory":
   {"baaaa":
@@ -49,19 +50,108 @@ def exampleViolation : Json := json% {"violation_kind": "safety_failure",
    {"transition": {"send": {"next": 2, "n": 1}},
     "index": 2,
     "fields": {"pending": [[0, 1], [1, 2]], "leader": []}},
-   {"transition": {"recv": {"sender": 0, "next": 2, "n": 1}},
+   {"transition": {"send": {"next": 3, "n": 2}},
     "index": 3,
-    "fields": {"pending": [[0, 1], [1, 2]], "leader": [1]}},
-   {"transition": {"recv": {"sender": 1, "next": 3, "n": 2}},
+    "fields": {"pending": [[0, 1], [1, 2], [2, 3]], "leader": []}},
+   {"transition": {"send": {"next": 4, "n": 3}},
     "index": 4,
-    "fields": {"pending": [[0, 1], [1, 2]], "leader": [1, 2]}}]},
+    "fields": {"pending": [[0, 1], [1, 2], [2, 3], [3, 4]], "leader": []}},
+   {"transition": {"send": {"next": 0, "n": 4}},
+    "index": 5,
+    "fields":
+    {"pending": [[0, 1], [1, 2], [2, 3], [3, 4], [4, 0]], "leader": []}},
+   {"transition": {"recv": {"sender": 0, "next": 2, "n": 1}},
+    "index": 6,
+    "fields": {"pending": [[1, 2], [2, 3], [3, 4], [4, 0]], "leader": [1]}},
+   {"transition": {"recv": {"sender": 1, "next": 3, "n": 2}},
+    "index": 7,
+    "fields": {"pending": [[2, 3], [3, 4], [4, 0]], "leader": [1, 2]}},
+   {"transition": {"recv": {"sender": 2, "next": 4, "n": 3}},
+    "index": 8,
+    "fields": {"pending": [[3, 4], [4, 0]], "leader": [1, 2, 3]}},
+   {"transition": {"recv": {"sender": 3, "next": 0, "n": 4}},
+    "index": 9,
+    "fields": {"pending": [[4, 0]], "leader": [1, 2, 3, 4]}},
+   {"transition": {"recv": {"sender": 4, "next": 1, "n": 0}},
+    "index": 10,
+    "fields": {"pending": [], "leader": [0, 1, 2, 3, 4]}}]},
+ "state_fingerprint": "16335755120522489119",
  "result": "found_violation"}
 
+#displayTrace ringViolation
+
+def exampleViolation : Json := json% {"violation":
+ {"violates": ["single_leader", "leader_greatest"], "kind": "safety_failure"},
+ "trace":
+ {"theory":
+  {"baaaa":
+   [[0, 0, 0],
+    [0, 1, 0],
+    [0, 2, 0],
+    [0, 3, 0],
+    [0, 4, 0],
+    [1, 0, 0],
+    [1, 1, 0],
+    [1, 2, 0],
+    [1, 3, 0],
+    [1, 4, 0],
+    [2, 0, 0],
+    [2, 1, 0],
+    [2, 2, 0],
+    [2, 3, 0],
+    [2, 4, 0],
+    [3, 0, 0],
+    [3, 1, 0],
+    [3, 2, 0],
+    [3, 3, 0],
+    [3, 4, 0],
+    [4, 0, 0],
+    [4, 1, 0],
+    [4, 2, 0],
+    [4, 3, 0],
+    [4, 4, 0]]},
+  "states":
+  [{"transition": "after_init",
+    "index": 0,
+    "fields": {"pending": [], "leader": []}},
+   {"transition": {"send": {"next": 1, "n": 0}},
+    "index": 1,
+    "fields": {"pending": [[0, 1]], "leader": []}},
+   {"transition": {"send": {"next": 2, "n": 1}},
+    "index": 2,
+    "fields": {"pending": [[0, 1], [1, 2]], "leader": []}},
+   {"transition": {"send": {"next": 3, "n": 2}},
+    "index": 3,
+    "fields": {"pending": [[0, 1], [1, 2], [2, 3]], "leader": []}},
+   {"transition": {"send": {"next": 4, "n": 3}},
+    "index": 4,
+    "fields": {"pending": [[0, 1], [1, 2], [2, 3], [3, 4]], "leader": []}},
+   {"transition": {"send": {"next": 0, "n": 4}},
+    "index": 5,
+    "fields":
+    {"pending": [[0, 1], [1, 2], [2, 3], [3, 4], [4, 0]], "leader": []}},
+   {"transition": {"recv": {"sender": 0, "next": 2, "n": 1}},
+    "index": 6,
+    "fields": {"pending": [[1, 2], [2, 3], [3, 4], [4, 0]], "leader": [1]}},
+   {"transition": {"recv": {"sender": 1, "next": 3, "n": 2}},
+    "index": 7,
+    "fields": {"pending": [[2, 3], [3, 4], [4, 0]], "leader": [1, 2]}},
+   {"transition": {"recv": {"sender": 2, "next": 4, "n": 3}},
+    "index": 8,
+    "fields": {"pending": [[3, 4], [4, 0]], "leader": [1, 2, 3]}},
+   {"transition": {"recv": {"sender": 3, "next": 0, "n": 4}},
+    "index": 9,
+    "fields": {"pending": [[4, 0]], "leader": [1, 2, 3, 4]}},
+   {"transition": {"recv": {"sender": 4, "next": 1, "n": 0}},
+    "index": 10,
+    "fields": {"pending": [], "leader": [0, 1, 2, 3, 4]}}]},
+ "state_fingerprint": "16335755120522489119",
+ "result": "found_violation"}
 
 #displayTrace exampleViolation
 
 
-def exampleDeadlock : Json := json% {"violation_kind": "deadlock",
+def exampleDeadlock : Json := json% {"violation": {"kind": "deadlock"},
  "trace":
  {"theory": {"none": 0},
   "states":
@@ -360,6 +450,75 @@ def exampleDeadlock : Json := json% {"violation_kind": "deadlock",
       [2, "Mutex.states_IndT.check_has_woken"]],
      "locked": false,
      "has_woken": [1]}}]},
+ "state_fingerprint": "4263100916297288679",
  "result": "found_violation"}
 
  #displayTrace exampleDeadlock
+
+
+def exampleNoViolationTrace : Json := json% {
+ "trace":
+ {"theory":
+  {"baaaa":
+   [[0, 0, 0],
+    [0, 1, 0],
+    [0, 2, 0],
+    [0, 3, 0],
+    [0, 4, 0],
+    [1, 0, 0],
+    [1, 1, 0],
+    [1, 2, 0],
+    [1, 3, 0],
+    [1, 4, 0],
+    [2, 0, 0],
+    [2, 1, 0],
+    [2, 2, 0],
+    [2, 3, 0],
+    [2, 4, 0],
+    [3, 0, 0],
+    [3, 1, 0],
+    [3, 2, 0],
+    [3, 3, 0],
+    [3, 4, 0],
+    [4, 0, 0],
+    [4, 1, 0],
+    [4, 2, 0],
+    [4, 3, 0],
+    [4, 4, 0]]},
+  "states":
+  [{"transition": "after_init",
+    "index": 0,
+    "fields": {"pending": [], "leader": []}},
+   {"transition": {"send": {"next": 1, "n": 0}},
+    "index": 1,
+    "fields": {"pending": [[0, 1]], "leader": []}},
+   {"transition": {"send": {"next": 2, "n": 1}},
+    "index": 2,
+    "fields": {"pending": [[0, 1], [1, 2]], "leader": []}},
+   {"transition": {"send": {"next": 3, "n": 2}},
+    "index": 3,
+    "fields": {"pending": [[0, 1], [1, 2], [2, 3]], "leader": []}},
+   {"transition": {"send": {"next": 4, "n": 3}},
+    "index": 4,
+    "fields": {"pending": [[0, 1], [1, 2], [2, 3], [3, 4]], "leader": []}},
+   {"transition": {"send": {"next": 0, "n": 4}},
+    "index": 5,
+    "fields":
+    {"pending": [[0, 1], [1, 2], [2, 3], [3, 4], [4, 0]], "leader": []}},
+   {"transition": {"recv": {"sender": 0, "next": 2, "n": 1}},
+    "index": 6,
+    "fields": {"pending": [[1, 2], [2, 3], [3, 4], [4, 0]], "leader": [1]}},
+   {"transition": {"recv": {"sender": 1, "next": 3, "n": 2}},
+    "index": 7,
+    "fields": {"pending": [[2, 3], [3, 4], [4, 0]], "leader": [1, 2]}},
+   {"transition": {"recv": {"sender": 2, "next": 4, "n": 3}},
+    "index": 8,
+    "fields": {"pending": [[3, 4], [4, 0]], "leader": [1, 2, 3]}},
+   {"transition": {"recv": {"sender": 3, "next": 0, "n": 4}},
+    "index": 9,
+    "fields": {"pending": [[4, 0]], "leader": [1, 2, 3, 4]}},
+   {"transition": {"recv": {"sender": 4, "next": 1, "n": 0}},
+    "index": 10,
+    "fields": {"pending": [], "leader": [0, 1, 2, 3, 4]}}]}}
+
+#displayTrace exampleNoViolationTrace
