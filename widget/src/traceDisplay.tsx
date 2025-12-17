@@ -372,11 +372,18 @@ function previewValue(v: unknown): string {
   return String(v);
 }
 
-const KVRow: React.FC<{ k: string; v: unknown; changeInfo?: ChangeInfo; showRemovals?: boolean }> = ({
+const KVRow: React.FC<{
+  k: string;
+  v: unknown;
+  changeInfo?: ChangeInfo;
+  showRemovals?: boolean;
+  onHideField?: (fieldName: string) => void;
+}> = ({
   k,
   v,
   changeInfo,
   showRemovals = false,
+  onHideField,
 }) => {
   const collapsible = isCollapsibleValue(v);
 
@@ -399,7 +406,16 @@ const KVRow: React.FC<{ k: string; v: unknown; changeInfo?: ChangeInfo; showRemo
         hasChange ? "changed" : ""
       }`}
     >
-      <div className="kv-key">
+      <div
+        className={`kv-key ${onHideField ? 'kv-key-clickable' : ''}`}
+        onClick={(e) => {
+          if (onHideField && (e.altKey || e.metaKey)) {
+            e.preventDefault();
+            onHideField(k);
+          }
+        }}
+        title={onHideField ? "Alt/Cmd-click to hide this field" : undefined}
+      >
         <code>{k}</code>
       </div>
       <div className="kv-sep">↦</div>
@@ -431,11 +447,14 @@ const StateCard: React.FC<{
   changes?: Map<string, ChangeInfo>;
   showRemovals?: boolean;
   forceOpen?: boolean | null;  // null means use local state, true/false forces open/closed
-}> = ({ st, highlighted = false, changes, showRemovals = false, forceOpen = null }) => {
+  hiddenFields?: Set<string>;
+  onHideField?: (fieldName: string) => void;
+}> = ({ st, highlighted = false, changes, showRemovals = false, forceOpen = null, hiddenFields, onHideField }) => {
   const [localOpen, setLocalOpen] = React.useState(true);
   // Use forceOpen if set, otherwise use local state
   const open = forceOpen !== null ? forceOpen : localOpen;
-  const entries = Object.entries(st.fields);
+  // Filter out hidden fields
+  const entries = Object.entries(st.fields).filter(([k]) => !hiddenFields?.has(k));
 
   return (
     <div className={`state-card ${highlighted ? "is-highlighted" : ""}`}>
@@ -451,7 +470,7 @@ const StateCard: React.FC<{
         <div className="state-body">
           <div className="kv-table">
             {entries.map(([k, v]) => (
-              <KVRow key={k} k={k} v={v} changeInfo={changes?.get(k)} showRemovals={showRemovals} />
+              <KVRow key={k} k={k} v={v} changeInfo={changes?.get(k)} showRemovals={showRemovals} onHideField={onHideField} />
             ))}
           </div>
         </div>
@@ -661,6 +680,36 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
   const [showRawJson, setShowRawJson] = React.useState(false);
   const [showRemovals, setShowRemovals] = React.useState(false);
   const [allStatesOpen, setAllStatesOpen] = React.useState<boolean | null>(null);  // null = individual control
+  const [hiddenFields, setHiddenFields] = React.useState<Set<string>>(new Set());
+  const [showFilterPanel, setShowFilterPanel] = React.useState(false);
+
+  // Compute all unique field names from the trace
+  const traceData = result.trace;
+  const allFieldNames = React.useMemo(() => {
+    if (!traceData?.states) return [];
+    const names = new Set<string>();
+    for (const state of traceData.states) {
+      for (const key of Object.keys(state.fields)) {
+        names.add(key);
+      }
+    }
+    return Array.from(names).sort();
+  }, [traceData]);
+
+  const toggleFieldVisibility = (fieldName: string) => {
+    setHiddenFields(prev => {
+      const next = new Set(prev);
+      if (next.has(fieldName)) {
+        next.delete(fieldName);
+      } else {
+        next.add(fieldName);
+      }
+      return next;
+    });
+  };
+
+  const showAllFields = () => setHiddenFields(new Set());
+  const hideAllFields = () => setHiddenFields(new Set(allFieldNames));
 
   // Keyboard shortcuts
   React.useEffect(() => {
@@ -678,6 +727,11 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       } else if (e.key === 'c' || e.key === 'C') {
         e.preventDefault();
         setAllStatesOpen(prev => prev === false ? true : false);
+      } else if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        setShowFilterPanel(prev => !prev);
+      } else if (e.key === 'Escape') {
+        setShowFilterPanel(false);
       }
     };
 
@@ -901,6 +955,11 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       justify-content: flex-end;
       gap: 12px;
       padding: 4px 8px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: var(--vscode-editorWidget-background);
+      border-bottom: 1px solid var(--vscode-panel-border);
     }
     .mc-toggle-link {
       font-size: 11px;
@@ -915,6 +974,102 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
     .mc-toggle-link:hover {
       text-decoration: underline;
       background: var(--vscode-toolbar-hoverBackground);
+    }
+    .mc-filter-active {
+      color: var(--vscode-notificationsInfoIcon-foreground, #3794ff);
+      font-weight: 600;
+    }
+    .mc-filter-panel {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 1000;
+      min-width: 250px;
+      max-width: 90vw;
+      max-height: 400px;
+      background: var(--vscode-editorWidget-background);
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 8px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+    }
+    .mc-filter-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.3);
+      z-index: 999;
+    }
+    .mc-filter-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--vscode-panel-border);
+      font-weight: 600;
+      font-size: 12px;
+    }
+    .mc-filter-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .mc-filter-action {
+      font-size: 10px;
+      color: var(--vscode-textLink-foreground);
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 2px 4px;
+    }
+    .mc-filter-action:hover {
+      text-decoration: underline;
+    }
+    .mc-filter-close {
+      font-size: 18px;
+      line-height: 1;
+      color: var(--vscode-foreground);
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0 4px;
+      margin-left: 8px;
+      opacity: 0.7;
+    }
+    .mc-filter-close:hover {
+      opacity: 1;
+    }
+    .mc-filter-list {
+      padding: 8px;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+    .mc-filter-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px;
+      cursor: pointer;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+    .mc-filter-item:hover {
+      background: var(--vscode-list-hoverBackground);
+    }
+    .mc-filter-item input {
+      margin: 0;
+    }
+    .mc-filter-item code {
+      font-size: 11px;
+    }
+    .kv-key-clickable {
+      cursor: pointer;
+    }
+    .kv-key-clickable:hover {
+      background: var(--vscode-list-hoverBackground);
+      border-radius: 3px;
     }
     .mc-json-view {
       margin: 8px;
@@ -970,7 +1125,6 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
   const prettyJson = JSON.stringify(result, null, 2);
 
   // Extract trace and theory from results (works for all result types)
-  const traceData = result.trace;
   const trace = traceData ? traceDataToStates(traceData) : [];
   const theory: Record<string, unknown> | undefined = traceData?.theory;
 
@@ -981,6 +1135,13 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
         <div className="mc-toolbar">
           {!showRawJson && (
             <>
+              <button
+                className={`mc-toggle-link ${hiddenFields.size > 0 ? 'mc-filter-active' : ''}`}
+                onClick={() => setShowFilterPanel(!showFilterPanel)}
+                title="Filter visible fields (F)"
+              >
+                Filter fields {hiddenFields.size > 0 ? `(${hiddenFields.size} hidden)` : ''} (F)
+              </button>
               <button className="mc-toggle-link" onClick={() => setAllStatesOpen(allStatesOpen === false ? true : false)} title="Keyboard shortcut: C">
                 {allStatesOpen === false ? "Expand all (C)" : "Collapse all (C)"}
               </button>
@@ -1028,7 +1189,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
                   {trace.map((s: ParsedState, idx: number) => {
                     const prev = idx > 0 ? trace[idx - 1].fields : undefined;
                     const changes = diffChanges(prev, s.fields);
-                    return <StateCard key={s.index} st={s} changes={changes} showRemovals={showRemovals} forceOpen={allStatesOpen} />;
+                    return <StateCard key={s.index} st={s} changes={changes} showRemovals={showRemovals} forceOpen={allStatesOpen} hiddenFields={hiddenFields} onHideField={toggleFieldVisibility} />;
                   })}
                 </div>
 
@@ -1043,6 +1204,35 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
                 </div>
               )
             )}
+          </>
+        )}
+
+        {/* Filter panel modal - rendered at root level for fixed positioning */}
+        {showFilterPanel && (
+          <>
+            <div className="mc-filter-backdrop" onClick={() => setShowFilterPanel(false)} />
+            <div className="mc-filter-panel">
+              <div className="mc-filter-header">
+                <span>Visible Fields</span>
+                <div className="mc-filter-actions">
+                  <button className="mc-filter-action" onClick={showAllFields}>Show all</button>
+                  <button className="mc-filter-action" onClick={hideAllFields}>Hide all</button>
+                  <button className="mc-filter-close" onClick={() => setShowFilterPanel(false)} title="Close (Esc)">×</button>
+                </div>
+              </div>
+              <div className="mc-filter-list">
+                {allFieldNames.map(name => (
+                  <label key={name} className="mc-filter-item">
+                    <input
+                      type="checkbox"
+                      checked={!hiddenFields.has(name)}
+                      onChange={() => toggleFieldVisibility(name)}
+                    />
+                    <code>{name}</code>
+                  </label>
+                ))}
+              </div>
+            </div>
           </>
         )}
       </div>
