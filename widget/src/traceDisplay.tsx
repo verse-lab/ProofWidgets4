@@ -430,13 +430,16 @@ const StateCard: React.FC<{
   highlighted?: boolean;
   changes?: Map<string, ChangeInfo>;
   showRemovals?: boolean;
-}> = ({ st, highlighted = false, changes, showRemovals = false }) => {
-  const [open, setOpen] = React.useState(true);
+  forceOpen?: boolean | null;  // null means use local state, true/false forces open/closed
+}> = ({ st, highlighted = false, changes, showRemovals = false, forceOpen = null }) => {
+  const [localOpen, setLocalOpen] = React.useState(true);
+  // Use forceOpen if set, otherwise use local state
+  const open = forceOpen !== null ? forceOpen : localOpen;
   const entries = Object.entries(st.fields);
 
   return (
     <div className={`state-card ${highlighted ? "is-highlighted" : ""}`}>
-      <div className="state-header" onClick={() => setOpen((o) => !o)}>
+      <div className="state-header" onClick={() => setLocalOpen((o) => !o)}>
         <span className="action-chip" title={st.tag ?? ''}>
           {st.tag || '(no action)'}
         </span>
@@ -657,6 +660,30 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
   const isVertical = layout === "vertical";
   const [showRawJson, setShowRawJson] = React.useState(false);
   const [showRemovals, setShowRemovals] = React.useState(false);
+  const [allStatesOpen, setAllStatesOpen] = React.useState<boolean | null>(null);  // null = individual control
+
+  // Keyboard shortcuts
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger shortcuts when typing in an input field
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      // Only handle shortcuts when not in JSON view
+      if (showRawJson) return;
+
+      if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        setShowRemovals(prev => !prev);
+      } else if (e.key === 'c' || e.key === 'C') {
+        e.preventDefault();
+        setAllStatesOpen(prev => prev === false ? true : false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showRawJson]);
 
   const styles = `
     .mc-root {
@@ -953,9 +980,14 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       <div className="mc-root">
         <div className="mc-toolbar">
           {!showRawJson && (
-            <button className="mc-toggle-link" onClick={() => setShowRemovals(!showRemovals)}>
-              {showRemovals ? "Hide removals" : "Show removals"}
-            </button>
+            <>
+              <button className="mc-toggle-link" onClick={() => setAllStatesOpen(allStatesOpen === false ? true : false)} title="Keyboard shortcut: C">
+                {allStatesOpen === false ? "Expand all (C)" : "Collapse all (C)"}
+              </button>
+              <button className="mc-toggle-link" onClick={() => setShowRemovals(!showRemovals)} title="Keyboard shortcut: R">
+                {showRemovals ? "Hide removals (R)" : "Show removals (R)"}
+              </button>
+            </>
           )}
           <button className="mc-toggle-link" onClick={() => setShowRawJson(!showRawJson)}>
             {showRawJson ? "Show formatted" : "Show JSON"}
@@ -996,7 +1028,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
                   {trace.map((s: ParsedState, idx: number) => {
                     const prev = idx > 0 ? trace[idx - 1].fields : undefined;
                     const changes = diffChanges(prev, s.fields);
-                    return <StateCard key={s.index} st={s} changes={changes} showRemovals={showRemovals} />;
+                    return <StateCard key={s.index} st={s} changes={changes} showRemovals={showRemovals} forceOpen={allStatesOpen} />;
                   })}
                 </div>
 
