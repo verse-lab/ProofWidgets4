@@ -449,16 +449,37 @@ const StateCard: React.FC<{
   forceOpen?: boolean | null;  // null means use local state, true/false forces open/closed
   hiddenFields?: Set<string>;
   onHideField?: (fieldName: string) => void;
-}> = ({ st, highlighted = false, changes, showRemovals = false, forceOpen = null, hiddenFields, onHideField }) => {
+  onResetForceOpen?: () => void;  // Called when user clicks header while forceOpen is active
+}> = ({ st, highlighted = false, changes, showRemovals = false, forceOpen = null, hiddenFields, onHideField, onResetForceOpen }) => {
   const [localOpen, setLocalOpen] = React.useState(true);
+
+  // Sync local state when forceOpen changes - this ensures that when we
+  // reset to individual control, each state keeps the forced value
+  React.useEffect(() => {
+    if (forceOpen !== null) {
+      setLocalOpen(forceOpen);
+    }
+  }, [forceOpen]);
+
   // Use forceOpen if set, otherwise use local state
   const open = forceOpen !== null ? forceOpen : localOpen;
+
+  const handleHeaderClick = () => {
+    if (forceOpen !== null && onResetForceOpen) {
+      // User clicked while in force mode - switch to individual control
+      // Set local state to opposite of current forced state, then reset force
+      setLocalOpen(!forceOpen);
+      onResetForceOpen();
+    } else {
+      setLocalOpen(o => !o);
+    }
+  };
   // Filter out hidden fields
   const entries = Object.entries(st.fields).filter(([k]) => !hiddenFields?.has(k));
 
   return (
     <div className={`state-card ${highlighted ? "is-highlighted" : ""}`}>
-      <div className="state-header" onClick={() => setLocalOpen((o) => !o)}>
+      <div className="state-header" onClick={handleHeaderClick}>
         <span className="action-chip" title={st.tag ?? ''}>
           {st.tag || '(no action)'}
         </span>
@@ -1189,7 +1210,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
                   {trace.map((s: ParsedState, idx: number) => {
                     const prev = idx > 0 ? trace[idx - 1].fields : undefined;
                     const changes = diffChanges(prev, s.fields);
-                    return <StateCard key={s.index} st={s} changes={changes} showRemovals={showRemovals} forceOpen={allStatesOpen} hiddenFields={hiddenFields} onHideField={toggleFieldVisibility} />;
+                    return <StateCard key={s.index} st={s} changes={changes} showRemovals={showRemovals} forceOpen={allStatesOpen} hiddenFields={hiddenFields} onHideField={toggleFieldVisibility} onResetForceOpen={() => setAllStatesOpen(null)} />;
                   })}
                 </div>
 
