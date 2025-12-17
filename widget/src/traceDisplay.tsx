@@ -211,7 +211,7 @@ function renderValueInline(x: unknown, changedIndices?: Set<number>, index?: num
 
 
 /** Render a row from an inner array:
- * - If it's length=2, render as `a, b` inline (no brackets)
+ * - If it's a flat tuple (all elements are primitives), render as `(a, b, c)` with parentheses
  * - Otherwise, render the inner array inline as `[a, b, ...]`
  * If not an array, fallback to regular rendering
 */
@@ -219,13 +219,18 @@ function renderRowFromInnerArray(e: unknown, changedIndices?: Set<number>, index
   const isChanged = changedIndices !== undefined && index !== undefined && changedIndices.has(index);
 
   if (Array.isArray(e)) {
-    if (e.length === 2) {
-      const a = renderValueInline(e[0]);
-      const b = renderValueInline(e[1]);
-      const code = <code>({a}{', '}{b})</code>;      // ← Two elements in one line separated by a comma
+    // Check if this is a flat tuple (all elements are primitives, not arrays)
+    const isFlatTuple = e.every(el => !Array.isArray(el));
+    if (isFlatTuple) {
+      const parts: React.ReactNode[] = [];
+      e.forEach((el, i) => {
+        parts.push(renderValueInline(el));
+        if (i < e.length - 1) parts.push(', ');
+      });
+      const code = <code>({parts})</code>;
       return isChanged ? <span className="changed-element">{code}</span> : code;
     } else {
-      const content = renderValueInline(e);           // ← Other lengths, inline as [ ... ]
+      const content = renderValueInline(e);           // ← Nested arrays, inline as [ ... ]
       return isChanged ? <span className="changed-element">{content}</span> : content;
     }
   }
@@ -248,18 +253,8 @@ function renderValue(v: unknown, changedIndices?: Set<number>): React.ReactNode 
   if (Array.isArray(v)) {
     if (v.length === 0) return <code>[]</code>;
 
-    // (a, b) single tuple: keep inline with parentheses
-    const isTuple2 =
-      v.length === 2 &&
-      !Array.isArray(v[0]) &&
-      !Array.isArray(v[1]);
-    if (isTuple2) {
-      const a = renderValue(v[0]);
-      const b = renderValue(v[1]);
-      return <code>({a},{' '}{b})</code>;
-    }
-
-    // ★ Key rule: As long as the "first-level list contains array elements", render each inner array on a separate line, but inline within the line
+    // ★ Key rule: If the array contains inner arrays, render each inner array on a separate line
+    // Inner arrays that are flat tuples will be rendered with parentheses by renderRowFromInnerArray
     const hasInnerArray = v.some(Array.isArray);
     if (hasInnerArray) {
       return (
@@ -271,7 +266,7 @@ function renderValue(v: unknown, changedIndices?: Set<number>): React.ReactNode 
       );
     }
 
-    // Inline to [a, b, c]
+    // Top-level flat arrays are rendered with brackets [a, b, c]
     return renderInlineArray(v, changedIndices);
   }
 
@@ -376,12 +371,10 @@ const StateCard: React.FC<{
   return (
     <div className={`state-card ${highlighted ? "is-highlighted" : ""}`}>
       <div className="state-header" onClick={() => setOpen((o) => !o)}>
-        <div className="state-title">
-          <span className="action-chip" title={st.tag ?? ''}>
-            {st.tag || '(no action)'}
-          </span>
-          <span className="state-id">(index: {st.index})</span>
-        </div>
+        <span className="action-chip" title={st.tag ?? ''}>
+          {st.tag || '(no action)'}
+        </span>
+        <span className="state-id">(index: {st.index})</span>
         <div className="state-toggle">{open ? "▼" : "▶"}</div>
       </div>
 
@@ -641,16 +634,15 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       padding: 6px 10px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      gap: 8px;
       font-weight: 600;
       cursor: pointer;
     }
-    .state-title {
-      display: flex;
-      gap: 6px;
-      align-items: baseline;
+    .state-id {
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+      margin-left: auto;
     }
-    .state-id { font-size: 12px; color: var(--vscode-descriptionForeground); }
     .state-toggle { font-size: 12px; color: var(--vscode-descriptionForeground); user-select: none; }
     .action-chip {
       display: inline-block;
