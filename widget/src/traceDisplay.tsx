@@ -23,7 +23,7 @@ interface TerminationReason {
 }
 
 interface TraceData {
-  theory: string;
+  theory: Record<string, unknown>;
   states: Array<{
     index: number;
     fields: Record<string, unknown>;
@@ -399,8 +399,9 @@ const StateCard: React.FC<{
 };
 
 /** Collapsible section for displaying theory info */
-const TheorySection: React.FC<{ theory: string }> = ({ theory }) => {
+const TheorySection: React.FC<{ theory: Record<string, unknown> }> = ({ theory }) => {
   const [expanded, setExpanded] = React.useState(false);
+  const entries = Object.entries(theory);
 
   return (
     <div className="theory-section">
@@ -410,7 +411,11 @@ const TheorySection: React.FC<{ theory: string }> = ({ theory }) => {
       </div>
       {expanded && (
         <div className="theory-content">
-          <code>{theory}</code>
+          <div className="kv-table">
+            {entries.map(([k, v]) => (
+              <KVRow key={k} k={k} v={v} />
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -788,12 +793,8 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       color: var(--vscode-foreground);
     }
     .theory-content {
-      padding: 8px 12px;
+      padding: 8px;
       border-top: 1px solid var(--vscode-panel-border);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-      font-size: 12px;
-      white-space: pre-wrap;
-      word-break: break-all;
     }
     .mc-toolbar {
       display: flex;
@@ -816,16 +817,19 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
     }
     .mc-json-view {
       margin: 8px;
-      padding: 12px;
       background: var(--vscode-editor-background);
       border: 1px solid var(--vscode-panel-border);
       border-radius: 6px;
+      position: relative;
+      max-height: 600px;
+    }
+    .mc-json-content {
+      padding: 12px;
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
       font-size: 12px;
       white-space: pre;
       overflow: auto;
       max-height: 600px;
-      position: relative;
     }
     .mc-copy-button {
       position: absolute;
@@ -844,7 +848,8 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       transition: background 0.15s, opacity 0.15s;
       opacity: 0;
     }
-    .mc-json-view:hover .mc-copy-button {
+    .mc-json-view:hover .mc-copy-button,
+    .mc-json-content:hover ~ .mc-copy-button {
       opacity: 1;
     }
     .mc-copy-button:hover {
@@ -867,7 +872,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
   const trace = result.result === "found_violation" && result.trace
     ? traceDataToStates(result.trace)
     : [];
-  const theory = result.result === "found_violation"
+  const theory: Record<string, unknown> | undefined = result.result === "found_violation"
     ? result.trace?.theory
     : undefined;
 
@@ -884,7 +889,9 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
         {showRawJson ? (
           <div className="mc-json-view">
             <CopyButton text={prettyJson} className="mc-copy-button" />
-            {highlightJson(prettyJson)}
+            <div className="mc-json-content">
+              {highlightJson(prettyJson)}
+            </div>
           </div>
         ) : (
           <>

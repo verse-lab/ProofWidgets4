@@ -588,10 +588,13 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
 
     .vr-json-view {
       position: relative;
-      padding: 12px;
       background: var(--vscode-editor-background);
       border: 1px solid var(--vscode-panel-border);
       border-radius: 6px;
+      max-height: 600px;
+    }
+    .vr-json-content {
+      padding: 12px;
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
       font-size: 12px;
       white-space: pre;
@@ -615,7 +618,8 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
       transition: background 0.15s, opacity 0.15s;
       opacity: 0;
     }
-    .vr-json-view:hover .vr-copy-button {
+    .vr-json-view:hover .vr-copy-button,
+    .vr-json-content:hover ~ .vr-copy-button {
       opacity: 1;
     }
     .vr-copy-button:hover {
@@ -650,7 +654,9 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
         {showRawJson ? (
           <div className="vr-json-view">
             <CopyButton text={prettyJson} className="vr-copy-button" />
-            {highlightJson(prettyJson)}
+            <div className="vr-json-content">
+              {highlightJson(prettyJson)}
+            </div>
           </div>
         ) : (
           <>
