@@ -64,6 +64,60 @@ type StatusFilter = 'all' | 'proven' | 'disproven' | 'unknown' | 'error' | 'pend
 
 // ========== Helpers ==========
 
+/** Copy button component */
+const CopyButton: React.FC<{ text: string; className?: string }> = ({ text, className }) => {
+  const [copied, setCopied] = React.useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  return (
+    <button className={className} onClick={handleCopy} title="Copy to clipboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        {copied ? (
+          <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+        ) : (
+          <>
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+          </>
+        )}
+      </svg>
+      {copied ? 'Copied!' : 'Copy JSON'}
+    </button>
+  );
+};
+
+/** Simple JSON syntax highlighting */
+function highlightJson(json: string): React.ReactNode {
+  const parts = json.split(/("(?:[^"\\]|\\.)*"|\btrue\b|\bfalse\b|\bnull\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g);
+
+  return parts.map((part, i) => {
+    if (!part) return null;
+    if (part.startsWith('"')) {
+      const isKey = json.indexOf(part + ':') !== -1 || json.indexOf(part + ' :') !== -1;
+      return <span key={i} className={isKey ? "json-key" : "json-string"}>{part}</span>;
+    }
+    if (part === 'true' || part === 'false') {
+      return <span key={i} className="json-boolean">{part}</span>;
+    }
+    if (part === 'null') {
+      return <span key={i} className="json-null">{part}</span>;
+    }
+    if (/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(part)) {
+      return <span key={i} className="json-number">{part}</span>;
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
+
 function getStatusIcon(status: VerificationCondition['status']): React.ReactNode {
   switch (status) {
     case 'proven': return '✅';
@@ -193,6 +247,7 @@ const ActionSection: React.FC<{
 
 const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }) => {
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>('all');
+  const [showRawJson, setShowRawJson] = React.useState(false);
 
   // Compute status colors with consistent semantic colors across all themes
   const statusColors = React.useMemo(() => {
@@ -508,62 +563,149 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
       text-align: left;
     }
 
+    .vr-toolbar {
+      display: flex;
+      justify-content: flex-end;
+      padding: 4px 0;
+      margin-bottom: 8px;
+    }
+
+    .vr-toggle-link {
+      font-size: 11px;
+      color: var(--vscode-textLink-foreground);
+      cursor: pointer;
+      text-decoration: none;
+      background: none;
+      border: none;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+
+    .vr-toggle-link:hover {
+      text-decoration: underline;
+      background: var(--vscode-toolbar-hoverBackground);
+    }
+
+    .vr-json-view {
+      position: relative;
+      padding: 12px;
+      background: var(--vscode-editor-background);
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      white-space: pre;
+      overflow: auto;
+      max-height: 600px;
+    }
+    .vr-copy-button {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--vscode-foreground);
+      background: var(--vscode-button-secondaryBackground);
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 4px;
+      padding: 4px 8px;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+      opacity: 0;
+    }
+    .vr-json-view:hover .vr-copy-button {
+      opacity: 1;
+    }
+    .vr-copy-button:hover {
+      background: var(--vscode-button-secondaryHoverBackground);
+    }
+    .vr-copy-button svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .json-key { color: var(--vscode-symbolIcon-propertyForeground, #9cdcfe); }
+    .json-string { color: var(--vscode-symbolIcon-stringForeground, #ce9178); }
+    .json-number { color: var(--vscode-symbolIcon-numberForeground, #b5cea8); }
+    .json-boolean { color: var(--vscode-symbolIcon-booleanForeground, #569cd6); }
+    .json-null { color: var(--vscode-symbolIcon-nullForeground, #569cd6); }
+
   `, [statusColors]);
+
+  const prettyJson = JSON.stringify(results, null, 2);
 
   return (
     <>
       <style>{styles}</style>
       <div className="vr-root">
-        {/* Filters */}
-        <div className="vr-filters">
-          <span className="vr-filter-label">Filter by status ({results.totalVCs} VCs):</span>
-          {(['all', 'pending', 'proven', 'disproven', 'unknown', 'error'] as StatusFilter[]).map((filter) => {
-            // Only show filter buttons for groups with elements
-            if (statusCounts[filter] === 0) return null;
-            return (
-              <button
-                key={filter}
-                className={`vr-filter-button ${statusFilter === filter ? 'active' : ''}`}
-                onClick={() => setStatusFilter(filter)}
-              >
-                {getFilterButtonContent(filter)} ({statusCounts[filter]})
-              </button>
-            );
-          })}
+        {/* Toolbar with JSON toggle */}
+        <div className="vr-toolbar">
+          <button className="vr-toggle-link" onClick={() => setShowRawJson(!showRawJson)}>
+            {showRawJson ? "Show formatted" : "Show JSON"}
+          </button>
         </div>
 
-        {filteredVCs.length === 0 ? (
-          <div className="vr-empty">No verification conditions match the selected filter.</div>
+        {showRawJson ? (
+          <div className="vr-json-view">
+            <CopyButton text={prettyJson} className="vr-copy-button" />
+            {highlightJson(prettyJson)}
+          </div>
         ) : (
           <>
-            {/* Initialization Section */}
-            {initializationVCs.length > 0 && (
-              <div className="vr-section">
-                <div className="vr-section-title">
-                  Initialization must establish the invariant:
-                </div>
-                <div className="vr-section-content">
-                  <div className="action-properties">
-                    {initializationVCs.map((vc) => (
-                      <PropertyRow key={vc.id} vc={vc} />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Filters */}
+            <div className="vr-filters">
+              <span className="vr-filter-label">Filter by status ({results.totalVCs} VCs):</span>
+              {(['all', 'pending', 'proven', 'disproven', 'unknown', 'error'] as StatusFilter[]).map((filter) => {
+                // Only show filter buttons for groups with elements
+                if (statusCounts[filter] === 0) return null;
+                return (
+                  <button
+                    key={filter}
+                    className={`vr-filter-button ${statusFilter === filter ? 'active' : ''}`}
+                    onClick={() => setStatusFilter(filter)}
+                  >
+                    {getFilterButtonContent(filter)} ({statusCounts[filter]})
+                  </button>
+                );
+              })}
+            </div>
 
-            {/* Actions Section */}
-            {otherActions.length > 0 && (
-              <div className="vr-section">
-                <div className="vr-section-title">
-                  The following set of actions must preserve the invariant:
-                </div>
-                <div className="vr-section-content">
-                  {otherActions.map(([action, vcs]) => (
-                    <ActionSection key={action} action={action} vcs={vcs} />
-                  ))}
-                </div>
-              </div>
+            {filteredVCs.length === 0 ? (
+              <div className="vr-empty">No verification conditions match the selected filter.</div>
+            ) : (
+              <>
+                {/* Initialization Section */}
+                {initializationVCs.length > 0 && (
+                  <div className="vr-section">
+                    <div className="vr-section-title">
+                      Initialization must establish the invariant:
+                    </div>
+                    <div className="vr-section-content">
+                      <div className="action-properties">
+                        {initializationVCs.map((vc) => (
+                          <PropertyRow key={vc.id} vc={vc} />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions Section */}
+                {otherActions.length > 0 && (
+                  <div className="vr-section">
+                    <div className="vr-section-title">
+                      The following set of actions must preserve the invariant:
+                    </div>
+                    <div className="vr-section-content">
+                      {otherActions.map(([action, vcs]) => (
+                        <ActionSection key={action} action={action} vcs={vcs} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}

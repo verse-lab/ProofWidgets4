@@ -519,11 +519,74 @@ function traceDataToStates(traceData: TraceData): ParsedState[] {
   }));
 }
 
+/** Copy button component */
+const CopyButton: React.FC<{ text: string; className?: string }> = ({ text, className }) => {
+  const [copied, setCopied] = React.useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  return (
+    <button className={className} onClick={handleCopy} title="Copy to clipboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        {copied ? (
+          <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+        ) : (
+          <>
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+          </>
+        )}
+      </svg>
+      {copied ? 'Copied!' : 'Copy JSON'}
+    </button>
+  );
+};
+
+/** Simple JSON syntax highlighting */
+function highlightJson(json: string): React.ReactNode {
+  // Split by JSON tokens while preserving them
+  const parts = json.split(/("(?:[^"\\]|\\.)*"|\btrue\b|\bfalse\b|\bnull\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g);
+
+  return parts.map((part, i) => {
+    if (!part) return null;
+
+    // String (key or value)
+    if (part.startsWith('"')) {
+      // Check if it's a key (followed by colon in the original)
+      const isKey = json.indexOf(part + ':') !== -1 || json.indexOf(part + ' :') !== -1;
+      return <span key={i} className={isKey ? "json-key" : "json-string"}>{part}</span>;
+    }
+    // Boolean
+    if (part === 'true' || part === 'false') {
+      return <span key={i} className="json-boolean">{part}</span>;
+    }
+    // Null
+    if (part === 'null') {
+      return <span key={i} className="json-null">{part}</span>;
+    }
+    // Number
+    if (/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(part)) {
+      return <span key={i} className="json-number">{part}</span>;
+    }
+    // Punctuation and whitespace
+    return <span key={i}>{part}</span>;
+  });
+}
+
 const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
   result,
   layout = "vertical",
 }) => {
   const isVertical = layout === "vertical";
+  const [showRawJson, setShowRawJson] = React.useState(false);
 
   const styles = `
     .mc-root {
@@ -732,57 +795,136 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       white-space: pre-wrap;
       word-break: break-all;
     }
+    .mc-toolbar {
+      display: flex;
+      justify-content: flex-end;
+      padding: 4px 8px;
+    }
+    .mc-toggle-link {
+      font-size: 11px;
+      color: var(--vscode-textLink-foreground);
+      cursor: pointer;
+      text-decoration: none;
+      background: none;
+      border: none;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+    .mc-toggle-link:hover {
+      text-decoration: underline;
+      background: var(--vscode-toolbar-hoverBackground);
+    }
+    .mc-json-view {
+      margin: 8px;
+      padding: 12px;
+      background: var(--vscode-editor-background);
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      white-space: pre;
+      overflow: auto;
+      max-height: 600px;
+      position: relative;
+    }
+    .mc-copy-button {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--vscode-foreground);
+      background: var(--vscode-button-secondaryBackground);
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 4px;
+      padding: 4px 8px;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+      opacity: 0;
+    }
+    .mc-json-view:hover .mc-copy-button {
+      opacity: 1;
+    }
+    .mc-copy-button:hover {
+      background: var(--vscode-button-secondaryHoverBackground);
+    }
+    .mc-copy-button svg {
+      width: 14px;
+      height: 14px;
+    }
+    .json-key { color: var(--vscode-symbolIcon-propertyForeground, #9cdcfe); }
+    .json-string { color: var(--vscode-symbolIcon-stringForeground, #ce9178); }
+    .json-number { color: var(--vscode-symbolIcon-numberForeground, #b5cea8); }
+    .json-boolean { color: var(--vscode-symbolIcon-booleanForeground, #569cd6); }
+    .json-null { color: var(--vscode-symbolIcon-nullForeground, #569cd6); }
   `;
 
-  // Handle the two result types
-  if (result.result === "no_violation_found") {
-    return (
-      <>
-        <style>{styles}</style>
-        <div className="mc-root">
-          <ResultHeader
-            resultType="no_violation_found"
-            exploredStates={result.explored_states}
-            terminationReason={result.termination_reason}
-          />
-        </div>
-      </>
-    );
-  }
+  const prettyJson = JSON.stringify(result, null, 2);
 
-  // result.result === "found_violation"
-  const trace = result.trace ? traceDataToStates(result.trace) : [];
-  const theory = result.trace?.theory;
+  // Extract trace and theory for violation results
+  const trace = result.result === "found_violation" && result.trace
+    ? traceDataToStates(result.trace)
+    : [];
+  const theory = result.result === "found_violation"
+    ? result.trace?.theory
+    : undefined;
 
   return (
     <>
       <style>{styles}</style>
       <div className="mc-root">
-        <ResultHeader
-          resultType="found_violation"
-          violationKind={result.violation_kind}
-        />
+        <div className="mc-toolbar">
+          <button className="mc-toggle-link" onClick={() => setShowRawJson(!showRawJson)}>
+            {showRawJson ? "Show formatted" : "Show JSON"}
+          </button>
+        </div>
 
-        {theory && <TheorySection theory={theory} />}
-
-        {trace.length > 0 ? (
-          <>
-            <div className={`mc-trace ${isVertical ? "vertical" : "horizontal"}`}>
-              {trace.map((s: ParsedState, idx: number) => {
-                const prev = idx > 0 ? trace[idx - 1].fields : undefined;
-                const changes = diffChanges(prev, s.fields);
-                return <StateCard key={s.index} st={s} changes={changes} />;
-              })}
-            </div>
-
-            <div className="mc-summary">
-              <strong>Summary:</strong> {trace.length} states in trace
-            </div>
-          </>
-        ) : (
-          <div className="mc-summary">
-            <strong>No trace available</strong>
+        {showRawJson ? (
+          <div className="mc-json-view">
+            <CopyButton text={prettyJson} className="mc-copy-button" />
+            {highlightJson(prettyJson)}
           </div>
+        ) : (
+          <>
+            {result.result === "no_violation_found" ? (
+              <ResultHeader
+                resultType="no_violation_found"
+                exploredStates={result.explored_states}
+                terminationReason={result.termination_reason}
+              />
+            ) : (
+              <>
+                <ResultHeader
+                  resultType="found_violation"
+                  violationKind={result.violation_kind}
+                />
+
+                {theory && <TheorySection theory={theory} />}
+
+                {trace.length > 0 ? (
+                  <>
+                    <div className={`mc-trace ${isVertical ? "vertical" : "horizontal"}`}>
+                      {trace.map((s: ParsedState, idx: number) => {
+                        const prev = idx > 0 ? trace[idx - 1].fields : undefined;
+                        const changes = diffChanges(prev, s.fields);
+                        return <StateCard key={s.index} st={s} changes={changes} />;
+                      })}
+                    </div>
+
+                    <div className="mc-summary">
+                      <strong>Summary:</strong> {trace.length} states in trace
+                    </div>
+                  </>
+                ) : (
+                  <div className="mc-summary">
+                    <strong>No trace available</strong>
+                  </div>
+                )}
+              </>
+            )}
+          </>
         )}
       </div>
     </>
