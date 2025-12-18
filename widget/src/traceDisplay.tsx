@@ -735,7 +735,13 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
   // Keyboard shortcuts
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger shortcuts when typing in an input field
+      // Handle Escape first - it should work everywhere to close the panel
+      if (e.key === 'Escape') {
+        setShowFilterPanel(false);
+        return;
+      }
+
+      // Don't trigger other shortcuts when typing in an input field
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
@@ -751,8 +757,6 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       } else if (e.key === 'f' || e.key === 'F') {
         e.preventDefault();
         setShowFilterPanel(prev => !prev);
-      } else if (e.key === 'Escape') {
-        setShowFilterPanel(false);
       }
     };
 
