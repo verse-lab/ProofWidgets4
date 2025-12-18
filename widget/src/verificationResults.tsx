@@ -609,9 +609,9 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
       align-items: center;
       gap: 4px;
       font-size: 11px;
-      color: var(--vscode-foreground);
-      background: var(--vscode-button-secondaryBackground);
-      border: 1px solid var(--vscode-panel-border);
+      color: var(--vscode-button-foreground);
+      background: var(--vscode-button-background);
+      border: none;
       border-radius: 4px;
       padding: 4px 8px;
       cursor: pointer;
@@ -623,7 +623,7 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
       opacity: 1;
     }
     .vr-copy-button:hover {
-      background: var(--vscode-button-secondaryHoverBackground);
+      background: var(--vscode-button-hoverBackground);
     }
     .vr-copy-button svg {
       width: 14px;
