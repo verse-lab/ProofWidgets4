@@ -6,8 +6,9 @@ import HtmlDisplay, { Html } from './htmlDisplay';
 interface VCMetadata {
   stmtDerivedFrom?: string[];
   property: string;
-  kind?: string;
+  kind?: 'primary' | 'alternative';
   action: string;
+  style?: 'wp' | 'tr';
 }
 
 interface Counterexample {
@@ -47,6 +48,8 @@ interface VerificationCondition {
   status: 'proven' | 'disproven' | 'unknown' | 'error' | null;
   metadata: VCMetadata;
   timing: VCTiming;
+  alternativeFor?: number | null;
+  isDormant?: boolean;
 }
 
 interface VerificationResults {
@@ -146,6 +149,22 @@ function groupByAction(vcs: VerificationCondition[]): Map<string, VerificationCo
   return groups;
 }
 
+// Build a map from primary VC ID to its alternative VC
+function buildAlternativeMap(vcs: VerificationCondition[]): Map<number, VerificationCondition> {
+  const map = new Map<number, VerificationCondition>();
+  for (const vc of vcs) {
+    if (vc.alternativeFor != null) {
+      map.set(vc.alternativeFor, vc);
+    }
+  }
+  return map;
+}
+
+// Filter to only show primary VCs (exclude all alternatives, whether dormant or not)
+function filterToVisibleVCs(vcs: VerificationCondition[]): VerificationCondition[] {
+  return vcs.filter(vc => vc.alternativeFor == null);
+}
+
 // ========== Components ==========
 
 function getFilterButtonContent(filter: StatusFilter): React.ReactNode {
@@ -169,8 +188,14 @@ function getFilterButtonContent(filter: StatusFilter): React.ReactNode {
   }
 }
 
-const PropertyRow: React.FC<{ vc: VerificationCondition }> = ({ vc }) => {
+interface PropertyRowProps {
+  vc: VerificationCondition;
+  alternativeVC?: VerificationCondition;
+}
+
+const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC }) => {
   const [expanded, setExpanded] = React.useState(false);
+  const [showTRCounterexample, setShowTRCounterexample] = React.useState(true);
 
   const formatTime = (ms: number | null) => {
     if (ms === null) return null;
@@ -178,11 +203,20 @@ const PropertyRow: React.FC<{ vc: VerificationCondition }> = ({ vc }) => {
     return `${(ms / 1000).toFixed(2)}s`;
   };
 
-  // Check if this disproven VC has counterexamples
-  const getFirstCounterexample = (): Counterexample | null => {
-    if (vc.status !== 'disproven') return null;
+  // Check if the alternative (TR) VC is running (not dormant, but no result yet)
+  const trIsRunning = alternativeVC && !alternativeVC.isDormant && alternativeVC.status === null;
 
-    for (const discharger of vc.timing.dischargers) {
+  // Check if the alternative (TR) VC completed (not dormant and has a result)
+  const trCompleted = alternativeVC && !alternativeVC.isDormant && alternativeVC.status !== null;
+
+  // TR was invoked means it's either running or completed
+  const trWasInvoked = trIsRunning || trCompleted;
+
+  // Get counterexample from a VC
+  const getFirstCounterexample = (targetVC: VerificationCondition): Counterexample | null => {
+    if (targetVC.status !== 'disproven') return null;
+
+    for (const discharger of targetVC.timing.dischargers) {
       const counterexamples = discharger.result?.data?.counterexamples;
       if (counterexamples && counterexamples.length > 0) {
         return counterexamples[0];
@@ -191,30 +225,85 @@ const PropertyRow: React.FC<{ vc: VerificationCondition }> = ({ vc }) => {
     return null;
   };
 
-  const counterexample = getFirstCounterexample();
-  const hasCounterexample = counterexample !== null;
+  const wpCounterexample = getFirstCounterexample(vc);
+  const trCounterexample = alternativeVC ? getFirstCounterexample(alternativeVC) : null;
+
+  // Determine which counterexample to show (prefer TR when available)
+  const hasWPCounterexample = wpCounterexample !== null;
+  const hasTRCounterexample = trCounterexample !== null;
+  const hasAnyCounterexample = hasWPCounterexample || hasTRCounterexample;
+  const hasBothCounterexamples = hasWPCounterexample && hasTRCounterexample;
+
+  // Default to TR counterexample if available, otherwise WP
+  const activeCounterexample = (showTRCounterexample && trCounterexample) || wpCounterexample;
+
+  // Format the time display
+  const getTimeDisplay = (): React.ReactNode => {
+    const wpTime = formatTime(vc.timing.totalTime);
+
+    if (trIsRunning) {
+      // TR is running: show WP time + spinner
+      return wpTime ? <>{wpTime}+<span className="spinner-inline">⏳</span></> : <span className="spinner-inline">⏳</span>;
+    }
+
+    if (trCompleted && alternativeVC.timing.totalTime !== null) {
+      // TR completed: show combined timing
+      const trTime = formatTime(alternativeVC.timing.totalTime);
+      if (wpTime && trTime) {
+        return `${wpTime}+${trTime}`;
+      }
+      return trTime || wpTime;
+    }
+
+    return wpTime;
+  };
+
+  const timeDisplay = getTimeDisplay();
 
   return (
     <>
       <div
-        className={`property-row status-${getStatusClass(vc.status)} ${hasCounterexample ? 'expandable' : ''}`}
-        onClick={() => hasCounterexample && setExpanded(!expanded)}
-        style={{ cursor: hasCounterexample ? 'pointer' : 'default' }}
+        className={`property-row status-${getStatusClass(vc.status)} ${hasAnyCounterexample ? 'expandable' : ''}`}
+        onClick={() => hasAnyCounterexample && setExpanded(!expanded)}
+        style={{ cursor: hasAnyCounterexample ? 'pointer' : 'default' }}
       >
-        {hasCounterexample && (
+        {hasAnyCounterexample && (
           <span className="property-toggle">{expanded ? '▼' : '▶'}</span>
         )}
         <span className="property-icon">{getStatusIcon(vc.status)}</span>
         <span className="property-name">{vc.metadata.property}</span>
-        {vc.timing.totalTime !== null && (
-          <span className="property-time">{formatTime(vc.timing.totalTime)}</span>
+        {trWasInvoked && (
+          <span className={`vc-style-badge tr-badge ${trIsRunning ? 'tr-running' : ''}`}>
+            TR{trIsRunning && '...'}
+          </span>
+        )}
+        {timeDisplay && (
+          <span className="property-time">{timeDisplay}</span>
         )}
       </div>
-      {expanded && counterexample && (
+      {expanded && activeCounterexample && (
         <div className="counterexample-container">
-          <div className="counterexample-label">Counterexample:</div>
+          <div className="counterexample-header">
+            <div className="counterexample-label">Counterexample:</div>
+            {hasBothCounterexamples && (
+              <div className="counterexample-toggle">
+                <button
+                  className={`cex-toggle-btn ${showTRCounterexample ? 'active' : ''}`}
+                  onClick={(e) => { e.stopPropagation(); setShowTRCounterexample(true); }}
+                >
+                  TR
+                </button>
+                <button
+                  className={`cex-toggle-btn ${!showTRCounterexample ? 'active' : ''}`}
+                  onClick={(e) => { e.stopPropagation(); setShowTRCounterexample(false); }}
+                >
+                  WP
+                </button>
+              </div>
+            )}
+          </div>
           <div className="counterexample-content">
-            <HtmlDisplay html={counterexample.html} />
+            <HtmlDisplay html={activeCounterexample.html} />
           </div>
         </div>
       )}
@@ -222,10 +311,13 @@ const PropertyRow: React.FC<{ vc: VerificationCondition }> = ({ vc }) => {
   );
 };
 
-const ActionSection: React.FC<{
+interface ActionSectionProps {
   action: string;
   vcs: VerificationCondition[];
-}> = ({ action, vcs }) => {
+  alternativeMap: Map<number, VerificationCondition>;
+}
+
+const ActionSection: React.FC<ActionSectionProps> = ({ action, vcs, alternativeMap }) => {
   const [expanded, setExpanded] = React.useState(true);
 
   return (
@@ -237,7 +329,11 @@ const ActionSection: React.FC<{
       {expanded && (
         <div className="action-properties">
           {vcs.map((vc) => (
-            <PropertyRow key={vc.id} vc={vc} />
+            <PropertyRow
+              key={vc.id}
+              vc={vc}
+              alternativeVC={alternativeMap.get(vc.id)}
+            />
           ))}
         </div>
       )}
@@ -285,10 +381,22 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
     }
   }, []);
 
-  // Compute counts for each status
+  // Build map from primary VC ID to its alternative VC (from ALL VCs including dormant)
+  const alternativeMap = React.useMemo(
+    () => buildAlternativeMap(results.vcs),
+    [results.vcs]
+  );
+
+  // Filter to only show primary VCs (alternatives are shown inline with their primary)
+  const visibleVCs = React.useMemo(
+    () => filterToVisibleVCs(results.vcs),
+    [results.vcs]
+  );
+
+  // Compute counts for each status (only from visible/non-dormant VCs)
   const statusCounts = React.useMemo(() => {
     const counts = {
-      all: results.vcs.length,
+      all: visibleVCs.length,
       pending: 0,
       proven: 0,
       disproven: 0,
@@ -296,7 +404,7 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
       error: 0,
     };
 
-    results.vcs.forEach((vc) => {
+    visibleVCs.forEach((vc) => {
       if (vc.status === null) {
         counts.pending++;
       } else if (vc.status === 'proven') {
@@ -311,14 +419,14 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
     });
 
     return counts;
-  }, [results.vcs]);
+  }, [visibleVCs]);
 
-  // Filter VCs based on status
+  // Filter VCs based on status (from already-visible VCs)
   const filteredVCs = React.useMemo(() => {
-    if (statusFilter === 'all') return results.vcs;
-    if (statusFilter === 'pending') return results.vcs.filter((vc) => vc.status === null);
-    return results.vcs.filter((vc) => vc.status === statusFilter);
-  }, [results.vcs, statusFilter]);
+    if (statusFilter === 'all') return visibleVCs;
+    if (statusFilter === 'pending') return visibleVCs.filter((vc) => vc.status === null);
+    return visibleVCs.filter((vc) => vc.status === statusFilter);
+  }, [visibleVCs, statusFilter]);
 
   // Group VCs by action
   const actionGroups = React.useMemo(() => groupByAction(filteredVCs), [filteredVCs]);
@@ -563,6 +671,76 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
       text-align: left;
     }
 
+    .counterexample-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .counterexample-toggle {
+      display: flex;
+      gap: 4px;
+    }
+
+    .cex-toggle-btn {
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 500;
+      border: 1px solid var(--vscode-panel-border);
+      background: var(--vscode-editorWidget-background);
+      color: var(--vscode-foreground);
+      border-radius: 3px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .cex-toggle-btn:hover {
+      background: var(--vscode-list-hoverBackground);
+    }
+
+    .cex-toggle-btn.active {
+      background: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      border-color: var(--vscode-button-background);
+    }
+
+    .vc-style-badge {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 3px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      flex-shrink: 0;
+    }
+
+    .tr-badge {
+      background: rgba(24, 144, 255, 0.15);
+      color: #1890ff;
+      border: 1px solid rgba(24, 144, 255, 0.3);
+    }
+
+    .tr-badge.tr-running {
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+        background: rgba(24, 144, 255, 0.15);
+      }
+      50% {
+        opacity: 0.7;
+        background: rgba(24, 144, 255, 0.3);
+      }
+    }
+
+    .spinner-inline {
+      display: inline-block;
+      animation: spin 2s linear infinite;
+    }
+
     .vr-toolbar {
       display: flex;
       justify-content: flex-end;
@@ -691,7 +869,11 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
                     <div className="vr-section-content">
                       <div className="action-properties">
                         {initializationVCs.map((vc) => (
-                          <PropertyRow key={vc.id} vc={vc} />
+                          <PropertyRow
+                            key={vc.id}
+                            vc={vc}
+                            alternativeVC={alternativeMap.get(vc.id)}
+                          />
                         ))}
                       </div>
                     </div>
@@ -706,7 +888,12 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
                     </div>
                     <div className="vr-section-content">
                       {otherActions.map(([action, vcs]) => (
-                        <ActionSection key={action} action={action} vcs={vcs} />
+                        <ActionSection
+                          key={action}
+                          action={action}
+                          vcs={vcs}
+                          alternativeMap={alternativeMap}
+                        />
                       ))}
                     </div>
                   </div>
