@@ -122,13 +122,17 @@ const StatePanel: React.FC<{
   title: string;
   fields: Record<string, unknown>;
   changes?: Map<string, ChangeInfo>;
-}> = ({ title, fields, changes }) => {
+  statusIndicator?: React.ReactNode;
+}> = ({ title, fields, changes, statusIndicator }) => {
   const entries = Object.entries(fields);
 
   return (
     <div className="cex-state-panel">
       <div className="cex-state-header">
-        {title}
+        <span>{title}</span>
+        {statusIndicator && (
+          <span className="cex-state-status">{statusIndicator}</span>
+        )}
       </div>
       <div className="cex-state-body">
         {entries.length === 0 ? (
@@ -148,12 +152,13 @@ const StatePanel: React.FC<{
 /** Structured counterexample view with side-by-side pre/post states */
 const StructuredCexView: React.FC<{
   data: StructuredJson;
+  property: string;
   headerRightContent?: React.ReactNode;
-}> = ({ data, headerRightContent }) => {
+}> = ({ data, property, headerRightContent }) => {
   const { preState, postState, label, instantiation } = data;
 
   // State for toolbar features
-  const [showRemovals, setShowRemovals] = React.useState(true);
+  const [showRemovals, setShowRemovals] = React.useState(false);
   const [hiddenFields, setHiddenFields] = React.useState<Set<string>>(new Set());
   const [showFilterPanel, setShowFilterPanel] = React.useState(false);
   const [isWideEnough, setIsWideEnough] = React.useState(true);
@@ -166,7 +171,7 @@ const StructuredCexView: React.FC<{
 
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        // Hide transition row when width < 600px (approximately when panels stack)
+        // Stack panels vertically when width < 600px
         setIsWideEnough(entry.contentRect.width >= 600);
       }
     });
@@ -306,34 +311,33 @@ const StructuredCexView: React.FC<{
         </div>
       )}
 
-      {/* Induction counterexample transition visualization (hidden when narrow) */}
+      {/* Centered action chip above panels (when side-by-side) */}
       {isWideEnough && (
-        <div className="cex-transition-row">
-          <div className="cex-transition-column">
-            <div className="cex-transition-state cex-transition-pre">
-              <span className="cex-transition-icon cex-icon-valid">✓</span>
-              <span className="cex-transition-label">Satisfies invariant</span>
-            </div>
-            <div className="cex-connector-line" />
-          </div>
-          <div className="cex-transition-center">
-            <span className="cex-action-chip">{formatActionLabel(label)}</span>
-          </div>
-          <div className="cex-transition-column">
-            <div className="cex-connector-line" />
-            <div className="cex-transition-state cex-transition-post">
-              <span className="cex-transition-icon cex-icon-invalid">✗</span>
-              <span className="cex-transition-label">Violates invariant</span>
-            </div>
-          </div>
+        <div className="cex-action-row">
+          <span className="cex-action-chip">{formatActionLabel(label)}</span>
         </div>
       )}
 
-      {/* Side-by-side state panels */}
-      <div className="cex-states-container">
-        <StatePanel title="Pre-State" fields={filteredPreState} />
+      {/* Side-by-side or stacked state panels */}
+      <div className={`cex-states-container ${!isWideEnough ? 'cex-states-stacked' : ''}`}>
+        <StatePanel
+          title="Pre-State"
+          fields={filteredPreState}
+          statusIndicator={<span className="cex-status-valid">✓ Satisfies all invariants </span>}
+        />
+        {/* Narrow view: centered action chip between stacked panels */}
+        {!isWideEnough && filteredPostState && (
+          <div className="cex-narrow-action">
+            <span className="cex-action-chip">{formatActionLabel(label)}</span>
+          </div>
+        )}
         {filteredPostState && (
-          <StatePanel title="Post-State" fields={filteredPostState} changes={filteredChanges} />
+          <StatePanel
+            title="Post-State"
+            fields={filteredPostState}
+            changes={filteredChanges}
+            statusIndicator={<span className="cex-status-invalid">✗ Violates <span className="cex-property-name">{property}</span></span>}
+          />
         )}
       </div>
 
@@ -571,6 +575,7 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC }) => {
           {activeCounterexample.structuredJson && !showRawHtml ? (
             <StructuredCexView
               data={activeCounterexample.structuredJson}
+              property={vc.metadata.property}
               headerRightContent={
                 <>
                   <button
@@ -1208,90 +1213,25 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
       align-items: center;
       gap: 4px;
       padding: 3px 10px;
-      background: var(--vscode-badge-background, rgba(0, 122, 204, 0.15));
+      background: var(--vscode-activityBarBadge-background);
+      color: var(--vscode-activityBarBadge-foreground);
       border-radius: 12px;
       font-size: 12px;
     }
 
     .cex-instantiation-key {
-      color: var(--vscode-descriptionForeground);
+      color: var(--vscode-activityBarBadge-foreground);
       font-weight: 500;
     }
 
     .cex-instantiation-eq {
-      color: var(--vscode-descriptionForeground);
+      color: var(--vscode-activityBarBadge-foreground);
       opacity: 0.6;
     }
 
     .cex-instantiation-val {
-      color: var(--vscode-foreground);
+      color: var(--vscode-activityBarBadge-foreground);
       font-weight: 500;
-    }
-
-    .cex-transition-row {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      margin-bottom: 12px;
-    }
-
-    .cex-transition-column {
-      flex: 1;
-      min-width: 280px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .cex-connector-line {
-      flex: 1;
-      height: 2px;
-      background: var(--vscode-panel-border);
-      opacity: 0.4;
-    }
-
-    .cex-transition-center {
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .cex-transition-state {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 8px 16px;
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 500;
-    }
-
-    .cex-transition-pre {
-      background: var(--vscode-diffEditor-insertedTextBackground, rgba(0, 180, 0, 0.15));
-      border: 1px solid var(--vscode-diffEditor-insertedLineBackground, rgba(0, 180, 0, 0.3));
-    }
-
-    .cex-transition-post {
-      background: var(--vscode-diffEditor-removedTextBackground, rgba(255, 80, 80, 0.15));
-      border: 1px solid var(--vscode-diffEditor-removedLineBackground, rgba(255, 80, 80, 0.3));
-    }
-
-    .cex-transition-icon {
-      font-size: 14px;
-      font-weight: 700;
-    }
-
-    .cex-icon-valid {
-      color: var(--vscode-testing-iconPassed, #4caf50);
-    }
-
-    .cex-icon-invalid {
-      color: var(--vscode-testing-iconFailed, #f44336);
-    }
-
-    .cex-transition-label {
-      color: var(--vscode-foreground);
     }
 
     .cex-action-chip {
@@ -1312,6 +1252,26 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
       flex-wrap: wrap;
     }
 
+    .cex-states-container.cex-states-stacked {
+      flex-direction: column;
+    }
+
+    .cex-narrow-action {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 8px 0;
+      width: 100%;
+    }
+
+    .cex-action-row {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 12px 0;
+      margin-bottom: 12px;
+    }
+
     .cex-state-panel {
       flex: 1;
       min-width: 280px;
@@ -1323,6 +1283,9 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
     }
 
     .cex-state-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
       font-weight: 600;
       font-size: 12px;
       padding: 8px 12px;
@@ -1331,6 +1294,26 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
       color: var(--vscode-foreground);
       text-transform: uppercase;
       letter-spacing: 0.5px;
+    }
+
+    .cex-state-status {
+      font-size: 10px;
+      font-weight: 500;
+      text-transform: none;
+      letter-spacing: normal;
+    }
+
+    .cex-status-valid {
+      color: var(--vscode-testing-iconPassed, #4caf50);
+    }
+
+    .cex-status-invalid {
+      color: var(--vscode-testing-iconFailed, #f44336);
+    }
+
+    .cex-property-name {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-weight: 600;
     }
 
     .cex-state-body {
