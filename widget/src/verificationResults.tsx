@@ -107,29 +107,6 @@ const CopyButton: React.FC<{ text: string; className?: string }> = ({ text, clas
   );
 };
 
-/** Simple JSON syntax highlighting */
-function highlightJson(json: string): React.ReactNode {
-  const parts = json.split(/("(?:[^"\\]|\\.)*"|\btrue\b|\bfalse\b|\bnull\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g);
-
-  return parts.map((part, i) => {
-    if (!part) return null;
-    if (part.startsWith('"')) {
-      const isKey = json.indexOf(part + ':') !== -1 || json.indexOf(part + ' :') !== -1;
-      return <span key={i} className={isKey ? "json-key" : "json-string"}>{part}</span>;
-    }
-    if (part === 'true' || part === 'false') {
-      return <span key={i} className="json-boolean">{part}</span>;
-    }
-    if (part === 'null') {
-      return <span key={i} className="json-null">{part}</span>;
-    }
-    if (/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(part)) {
-      return <span key={i} className="json-number">{part}</span>;
-    }
-    return <span key={i}>{part}</span>;
-  });
-}
-
 function getStatusIcon(status: VerificationCondition['status']): React.ReactNode {
   switch (status) {
     case 'proven': return '✅';
@@ -893,12 +870,6 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
       height: 14px;
     }
 
-    .json-key { color: var(--vscode-symbolIcon-propertyForeground, #9cdcfe); }
-    .json-string { color: var(--vscode-symbolIcon-stringForeground, #ce9178); }
-    .json-number { color: var(--vscode-symbolIcon-numberForeground, #b5cea8); }
-    .json-boolean { color: var(--vscode-symbolIcon-booleanForeground, #569cd6); }
-    .json-null { color: var(--vscode-symbolIcon-nullForeground, #569cd6); }
-
   `, [statusColors]);
 
   const prettyJson = JSON.stringify(results, null, 2);
@@ -918,7 +889,7 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
           <div className="vr-json-view">
             <CopyButton text={prettyJson} className="vr-copy-button" />
             <div className="vr-json-content">
-              {highlightJson(prettyJson)}
+              {prettyJson}
             </div>
           </div>
         ) : (

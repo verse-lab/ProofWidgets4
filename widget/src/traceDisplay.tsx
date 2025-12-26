@@ -662,37 +662,6 @@ const CopyButton: React.FC<{ text: string; className?: string }> = ({ text, clas
   );
 };
 
-/** Simple JSON syntax highlighting */
-function highlightJson(json: string): React.ReactNode {
-  // Split by JSON tokens while preserving them
-  const parts = json.split(/("(?:[^"\\]|\\.)*"|\btrue\b|\bfalse\b|\bnull\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g);
-
-  return parts.map((part, i) => {
-    if (!part) return null;
-
-    // String (key or value)
-    if (part.startsWith('"')) {
-      // Check if it's a key (followed by colon in the original)
-      const isKey = json.indexOf(part + ':') !== -1 || json.indexOf(part + ' :') !== -1;
-      return <span key={i} className={isKey ? "json-key" : "json-string"}>{part}</span>;
-    }
-    // Boolean
-    if (part === 'true' || part === 'false') {
-      return <span key={i} className="json-boolean">{part}</span>;
-    }
-    // Null
-    if (part === 'null') {
-      return <span key={i} className="json-null">{part}</span>;
-    }
-    // Number
-    if (/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(part)) {
-      return <span key={i} className="json-number">{part}</span>;
-    }
-    // Punctuation and whitespace
-    return <span key={i}>{part}</span>;
-  });
-}
-
 const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
   result,
   layout = "vertical",
@@ -1140,11 +1109,6 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       width: 14px;
       height: 14px;
     }
-    .json-key { color: var(--vscode-symbolIcon-propertyForeground, #9cdcfe); }
-    .json-string { color: var(--vscode-symbolIcon-stringForeground, #ce9178); }
-    .json-number { color: var(--vscode-symbolIcon-numberForeground, #b5cea8); }
-    .json-boolean { color: var(--vscode-symbolIcon-booleanForeground, #569cd6); }
-    .json-null { color: var(--vscode-symbolIcon-nullForeground, #569cd6); }
   `;
 
   const prettyJson = JSON.stringify(result, null, 2);
@@ -1184,7 +1148,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
           <div className="mc-json-view">
             <CopyButton text={prettyJson} className="mc-copy-button" />
             <div className="mc-json-content">
-              {highlightJson(prettyJson)}
+              {prettyJson}
             </div>
           </div>
         ) : (
