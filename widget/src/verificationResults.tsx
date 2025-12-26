@@ -25,14 +25,23 @@ interface DischargerResult {
   time: number;
   status: string;
   data?: DischargerResultData;
+  exceptions?: string[];
 }
+
+interface DischargerStatusFinished {
+  finished: {
+    res: DischargerResult;
+  };
+}
+
+type DischargerStatus = string | DischargerStatusFinished;
 
 interface Discharger {
   id: number;
   name: string;
-  status: string;
-  time: number;
-  result?: DischargerResult;
+  status: DischargerStatus;
+  time: number | null;
+  result?: DischargerResult | null;
 }
 
 interface VCTiming {
@@ -136,6 +145,25 @@ function getStatusClass(status: VerificationCondition['status']): string {
   return status || 'pending';
 }
 
+// Extract exceptions from dischargers
+function getExceptionsFromVC(vc: VerificationCondition): string[] {
+  const exceptions: string[] = [];
+  for (const discharger of vc.timing.dischargers) {
+    // Check if status is an object with finished.res.exceptions
+    if (typeof discharger.status === 'object' && discharger.status !== null) {
+      const finished = (discharger.status as DischargerStatusFinished).finished;
+      if (finished?.res?.exceptions) {
+        exceptions.push(...finished.res.exceptions);
+      }
+    }
+    // Also check the result field for exceptions
+    if (discharger.result?.exceptions) {
+      exceptions.push(...discharger.result.exceptions);
+    }
+  }
+  return exceptions;
+}
+
 // Group VCs by action
 function groupByAction(vcs: VerificationCondition[]): Map<string, VerificationCondition[]> {
   const groups = new Map<string, VerificationCondition[]>();
@@ -237,6 +265,13 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC }) => {
   // Default to TR counterexample if available, otherwise WP
   const activeCounterexample = (showTRCounterexample && trCounterexample) || wpCounterexample;
 
+  // Get exceptions from the VC
+  const exceptions = getExceptionsFromVC(vc);
+  const hasExceptions = exceptions.length > 0;
+
+  // Row is expandable if it has counterexamples or exceptions
+  const isExpandable = hasAnyCounterexample || hasExceptions;
+
   // Format the time display
   const getTimeDisplay = (): React.ReactNode => {
     const wpTime = formatTime(vc.timing.totalTime);
@@ -263,11 +298,11 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC }) => {
   return (
     <>
       <div
-        className={`property-row status-${getStatusClass(vc.status)} ${hasAnyCounterexample ? 'expandable' : ''}`}
-        onClick={() => hasAnyCounterexample && setExpanded(!expanded)}
-        style={{ cursor: hasAnyCounterexample ? 'pointer' : 'default' }}
+        className={`property-row status-${getStatusClass(vc.status)} ${isExpandable ? 'expandable' : ''}`}
+        onClick={() => isExpandable && setExpanded(!expanded)}
+        style={{ cursor: isExpandable ? 'pointer' : 'default' }}
       >
-        {hasAnyCounterexample && (
+        {isExpandable && (
           <span className="property-toggle">{expanded ? '▼' : '▶'}</span>
         )}
         <span className="property-icon">{getStatusIcon(vc.status)}</span>
@@ -281,6 +316,16 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC }) => {
           <span className="property-time">{timeDisplay}</span>
         )}
       </div>
+      {expanded && hasExceptions && (
+        <div className="exceptions-container">
+          <div className="exceptions-label">Exceptions:</div>
+          <div className="exceptions-content">
+            {exceptions.map((exception, idx) => (
+              <pre key={idx} className="exception-item">{exception}</pre>
+            ))}
+          </div>
+        </div>
+      )}
       {expanded && activeCounterexample && (
         <div className="counterexample-container">
           <div className="counterexample-header">
@@ -665,6 +710,46 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
     .counterexample-content {
       font-size: 13px;
       color: var(--vscode-editor-foreground);
+    }
+
+    .exceptions-container {
+      margin-left: 32px;
+      margin-top: 8px;
+      margin-bottom: 8px;
+      padding: 12px;
+      background: var(--vscode-editorWidget-background);
+      border-left: 3px solid #fa8c16;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+
+    .exceptions-label {
+      font-weight: 600;
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .exceptions-content {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .exception-item {
+      margin: 0;
+      padding: 8px 12px;
+      background: var(--vscode-inputValidation-errorBackground, rgba(250, 140, 22, 0.1));
+      border: 1px solid var(--vscode-inputValidation-errorBorder, #fa8c16);
+      border-radius: 4px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      color: var(--vscode-editor-foreground);
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-wrap: break-word;
     }
 
     .counterexample-column-header {
