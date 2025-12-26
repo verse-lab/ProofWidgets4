@@ -9,843 +9,352 @@ section
 open Lean.Widget ProofWidgets RefreshComponent Jsx Lean Server
 
 
-def exampleResults : Json := json% {
-  "totalDischarged": 11,
-  "totalSolved": 11,
-  "totalTime": 3450,
-  "totalVCs": 21,
-  "vcs": [
-    {
-      "alternativeFor": null,
-      "id": 0,
-      "isDormant": false,
-      "metadata": {
-        "action": "initializer",
-        "kind": "primary",
-        "property": "doesNotThrow",
-        "style": "wp"
-      },
-      "name": "initializer_doesNotThrow",
+def exampleResults : Json := json% {"vcs":
+ [{"timing":
+   {"totalTime": 26,
+    "successfulDischargerTime": 26,
+    "successfulDischargerId": 0,
+    "dischargers":
+    [{"time": 26,
       "status": "proven",
-      "timing": {
-        "dischargers": [
-          {
-            "id": 0,
-            "name": "initializer_doesNotThrow_0",
-            "result": {
-              "data": null,
-              "status": "proven",
-              "time": 27
-            },
-            "status": {
-              "finished": {
-                "res": {
-                  "data": null,
-                  "status": "proven",
-                  "time": 27
-                }
-              }
-            },
-            "time": 27
-          }
-        ],
-        "successfulDischargerId": 0,
-        "successfulDischargerTime": 27,
-        "totalTime": 27
-      }
-    },
-    {
-      "alternativeFor": null,
-      "id": 1,
-      "isDormant": false,
-      "metadata": {
-        "action": "initializer",
-        "kind": "primary",
-        "property": "single_leader",
-        "style": "wp"
-      },
-      "name": "initializer_single_leader",
+      "result": {"time": 26, "status": "proven", "data": null},
+      "name": "initializer_doesNotThrow_0",
+      "id": 0}]},
+   "status": "proven",
+   "name": "initializer_doesNotThrow",
+   "metadata": {"style": "wp", "property": "doesNotThrow", "kind": "primary", "action": "initializer"},
+   "isDormant": false,
+   "id": 0,
+   "alternativeFor": null},
+  {"timing":
+   {"totalTime": 425,
+    "successfulDischargerTime": 425,
+    "successfulDischargerId": 0,
+    "dischargers":
+    [{"time": 425,
       "status": "proven",
-      "timing": {
-        "dischargers": [
-          {
-            "id": 0,
-            "name": "initializer_single_leader_0",
-            "result": {
-              "data": {
-                "kind": "unsat",
-                "unsatCores": [
-                  []
-                ]
-              },
-              "status": "proven",
-              "time": 364
-            },
-            "status": {
-              "finished": {
-                "res": {
-                  "data": {
-                    "kind": "unsat",
-                    "unsatCores": [
-                      []
-                    ]
-                  },
-                  "status": "proven",
-                  "time": 364
-                }
-              }
-            },
-            "time": 364
-          }
-        ],
-        "successfulDischargerId": 0,
-        "successfulDischargerTime": 364,
-        "totalTime": 364
-      }
-    },
-    {
-      "alternativeFor": 1,
-      "id": 2,
-      "isDormant": true,
-      "metadata": {
-        "action": "initializer",
-        "kind": "alternative",
-        "property": "single_leader",
-        "style": "tr"
-      },
-      "name": "initializer_single_leader_tr",
-      "status": null,
-      "timing": {
-        "dischargers": [
-          {
-            "id": 0,
-            "name": "initializer_single_leader_tr_0",
-            "result": null,
-            "status": "notStarted",
-            "time": null
-          }
-        ],
-        "successfulDischargerId": null,
-        "successfulDischargerTime": null,
-        "totalTime": null
-      }
-    },
-    {
-      "alternativeFor": null,
-      "id": 3,
-      "isDormant": false,
-      "metadata": {
-        "action": "initializer",
-        "kind": "primary",
-        "property": "leader_greatest",
-        "style": "wp"
-      },
-      "name": "initializer_leader_greatest",
+      "result": {"time": 425, "status": "proven", "data": {"unsatCores": [[]], "kind": "unsat"}},
+      "name": "initializer_single_leader_0",
+      "id": 0}]},
+   "status": "proven",
+   "name": "initializer_single_leader",
+   "metadata": {"style": "wp", "property": "single_leader", "kind": "primary", "action": "initializer"},
+   "isDormant": false,
+   "id": 1,
+   "alternativeFor": null},
+  {"timing":
+   {"totalTime": null,
+    "successfulDischargerTime": null,
+    "successfulDischargerId": null,
+    "dischargers":
+    [{"time": null, "status": "notStarted", "result": null, "name": "initializer_single_leader_tr_0", "id": 0}]},
+   "status": null,
+   "name": "initializer_single_leader_tr",
+   "metadata": {"style": "tr", "property": "single_leader", "kind": "alternative", "action": "initializer"},
+   "isDormant": true,
+   "id": 2,
+   "alternativeFor": 1},
+  {"timing":
+   {"totalTime": 97,
+    "successfulDischargerTime": 97,
+    "successfulDischargerId": 0,
+    "dischargers":
+    [{"time": 97,
       "status": "proven",
-      "timing": {
-        "dischargers": [
-          {
-            "id": 0,
-            "name": "initializer_leader_greatest_0",
-            "result": {
-              "data": null,
-              "status": "proven",
-              "time": 108
-            },
-            "status": {
-              "finished": {
-                "res": {
-                  "data": null,
-                  "status": "proven",
-                  "time": 108
-                }
-              }
-            },
-            "time": 108
-          }
-        ],
-        "successfulDischargerId": 0,
-        "successfulDischargerTime": 108,
-        "totalTime": 108
-      }
-    },
-    {
-      "alternativeFor": 3,
-      "id": 4,
-      "isDormant": true,
-      "metadata": {
-        "action": "initializer",
-        "kind": "alternative",
-        "property": "leader_greatest",
-        "style": "tr"
-      },
-      "name": "initializer_leader_greatest_tr",
-      "status": null,
-      "timing": {
-        "dischargers": [
-          {
-            "id": 0,
-            "name": "initializer_leader_greatest_tr_0",
-            "result": null,
-            "status": "notStarted",
-            "time": null
-          }
-        ],
-        "successfulDischargerId": null,
-        "successfulDischargerTime": null,
-        "totalTime": null
-      }
-    },
-    {
-      "alternativeFor": null,
-      "id": 5,
-      "isDormant": false,
-      "metadata": {
-        "action": "initializer",
-        "kind": "primary",
-        "property": "inv_2",
-        "style": "wp"
-      },
-      "name": "initializer_inv_2",
+      "result": {"time": 97, "status": "proven", "data": null},
+      "name": "initializer_leader_greatest_0",
+      "id": 0}]},
+   "status": "proven",
+   "name": "initializer_leader_greatest",
+   "metadata": {"style": "wp", "property": "leader_greatest", "kind": "primary", "action": "initializer"},
+   "isDormant": false,
+   "id": 3,
+   "alternativeFor": null},
+  {"timing":
+   {"totalTime": null,
+    "successfulDischargerTime": null,
+    "successfulDischargerId": null,
+    "dischargers":
+    [{"time": null, "status": "notStarted", "result": null, "name": "initializer_leader_greatest_tr_0", "id": 0}]},
+   "status": null,
+   "name": "initializer_leader_greatest_tr",
+   "metadata": {"style": "tr", "property": "leader_greatest", "kind": "alternative", "action": "initializer"},
+   "isDormant": true,
+   "id": 4,
+   "alternativeFor": 3},
+  {"timing":
+   {"totalTime": 94,
+    "successfulDischargerTime": 94,
+    "successfulDischargerId": 0,
+    "dischargers":
+    [{"time": 94,
       "status": "proven",
-      "timing": {
-        "dischargers": [
-          {
-            "id": 0,
-            "name": "initializer_inv_2_0",
-            "result": {
-              "data": null,
-              "status": "proven",
-              "time": 107
-            },
-            "status": {
-              "finished": {
-                "res": {
-                  "data": null,
-                  "status": "proven",
-                  "time": 107
-                }
-              }
-            },
-            "time": 107
-          }
-        ],
-        "successfulDischargerId": 0,
-        "successfulDischargerTime": 107,
-        "totalTime": 107
-      }
-    },
-    {
-      "alternativeFor": 5,
-      "id": 6,
-      "isDormant": true,
-      "metadata": {
-        "action": "initializer",
-        "kind": "alternative",
-        "property": "inv_2",
-        "style": "tr"
-      },
-      "name": "initializer_inv_2_tr",
-      "status": null,
-      "timing": {
-        "dischargers": [
-          {
-            "id": 0,
-            "name": "initializer_inv_2_tr_0",
-            "result": null,
-            "status": "notStarted",
-            "time": null
-          }
-        ],
-        "successfulDischargerId": null,
-        "successfulDischargerTime": null,
-        "totalTime": null
-      }
-    },
-    {
-      "alternativeFor": null,
-      "id": 7,
-      "isDormant": false,
-      "metadata": {
-        "action": "send",
-        "kind": "primary",
-        "property": "doesNotThrow",
-        "style": "wp"
-      },
-      "name": "send_doesNotThrow",
+      "result": {"time": 94, "status": "proven", "data": null},
+      "name": "initializer_inv_2_0",
+      "id": 0}]},
+   "status": "proven",
+   "name": "initializer_inv_2",
+   "metadata": {"style": "wp", "property": "inv_2", "kind": "primary", "action": "initializer"},
+   "isDormant": false,
+   "id": 5,
+   "alternativeFor": null},
+  {"timing":
+   {"totalTime": null,
+    "successfulDischargerTime": null,
+    "successfulDischargerId": null,
+    "dischargers": [{"time": null, "status": "notStarted", "result": null, "name": "initializer_inv_2_tr_0", "id": 0}]},
+   "status": null,
+   "name": "initializer_inv_2_tr",
+   "metadata": {"style": "tr", "property": "inv_2", "kind": "alternative", "action": "initializer"},
+   "isDormant": true,
+   "id": 6,
+   "alternativeFor": 5},
+  {"timing":
+   {"totalTime": 437,
+    "successfulDischargerTime": 437,
+    "successfulDischargerId": 0,
+    "dischargers":
+    [{"time": 437,
       "status": "proven",
-      "timing": {
-        "dischargers": [
-          {
-            "id": 0,
-            "name": "send_doesNotThrow_0",
-            "result": {
-              "data": {
-                "kind": "unsat",
-                "unsatCores": [
-                  []
-                ]
-              },
-              "status": "proven",
-              "time": 385
-            },
-            "status": {
-              "finished": {
-                "res": {
-                  "data": {
-                    "kind": "unsat",
-                    "unsatCores": [
-                      []
-                    ]
-                  },
-                  "status": "proven",
-                  "time": 385
-                }
-              }
-            },
-            "time": 385
-          }
-        ],
-        "successfulDischargerId": 0,
-        "successfulDischargerTime": 385,
-        "totalTime": 385
-      }
-    },
-    {
-      "alternativeFor": null,
-      "id": 8,
-      "isDormant": false,
-      "metadata": {
-        "action": "send",
-        "kind": "primary",
-        "property": "single_leader",
-        "style": "wp"
-      },
-      "name": "send_single_leader",
+      "result": {"time": 437, "status": "proven", "data": {"unsatCores": [[]], "kind": "unsat"}},
+      "name": "send_doesNotThrow_0",
+      "id": 0}]},
+   "status": "proven",
+   "name": "send_doesNotThrow",
+   "metadata": {"style": "wp", "property": "doesNotThrow", "kind": "primary", "action": "send"},
+   "isDormant": false,
+   "id": 7,
+   "alternativeFor": null},
+  {"timing":
+   {"totalTime": 500,
+    "successfulDischargerTime": 500,
+    "successfulDischargerId": 0,
+    "dischargers":
+    [{"time": 500,
       "status": "proven",
-      "timing": {
-        "dischargers": [
-          {
-            "id": 0,
-            "name": "send_single_leader_0",
-            "result": {
-              "data": {
-                "kind": "unsat",
-                "unsatCores": [
-                  [
-                    "_uniq.101914",
-                    "_uniq.102075"
-                  ]
-                ]
-              },
-              "status": "proven",
-              "time": 414
-            },
-            "status": {
-              "finished": {
-                "res": {
-                  "data": {
-                    "kind": "unsat",
-                    "unsatCores": [
-                      [
-                        "_uniq.101914",
-                        "_uniq.102075"
-                      ]
-                    ]
-                  },
-                  "status": "proven",
-                  "time": 414
-                }
-              }
-            },
-            "time": 414
-          }
-        ],
-        "successfulDischargerId": 0,
-        "successfulDischargerTime": 414,
-        "totalTime": 414
-      }
-    },
-    {
-      "alternativeFor": 8,
-      "id": 9,
-      "isDormant": true,
-      "metadata": {
-        "action": "send",
-        "kind": "alternative",
-        "property": "single_leader",
-        "style": "tr"
-      },
-      "name": "send_single_leader_tr",
-      "status": null,
-      "timing": {
-        "dischargers": [
-          {
-            "id": 0,
-            "name": "send_single_leader_tr_0",
-            "result": null,
-            "status": "notStarted",
-            "time": null
-          }
-        ],
-        "successfulDischargerId": null,
-        "successfulDischargerTime": null,
-        "totalTime": null
-      }
-    },
-    {
-      "alternativeFor": null,
-      "id": 10,
-      "isDormant": false,
-      "metadata": {
-        "action": "send",
-        "kind": "primary",
-        "property": "leader_greatest",
-        "style": "wp"
-      },
-      "name": "send_leader_greatest",
+      "result":
+      {"time": 500, "status": "proven", "data": {"unsatCores": [["_uniq.104268", "_uniq.104429"]], "kind": "unsat"}},
+      "name": "send_single_leader_0",
+      "id": 0}]},
+   "status": "proven",
+   "name": "send_single_leader",
+   "metadata": {"style": "wp", "property": "single_leader", "kind": "primary", "action": "send"},
+   "isDormant": false,
+   "id": 8,
+   "alternativeFor": null},
+  {"timing":
+   {"totalTime": null,
+    "successfulDischargerTime": null,
+    "successfulDischargerId": null,
+    "dischargers":
+    [{"time": null, "status": "notStarted", "result": null, "name": "send_single_leader_tr_0", "id": 0}]},
+   "status": null,
+   "name": "send_single_leader_tr",
+   "metadata": {"style": "tr", "property": "single_leader", "kind": "alternative", "action": "send"},
+   "isDormant": true,
+   "id": 9,
+   "alternativeFor": 8},
+  {"timing":
+   {"totalTime": 497,
+    "successfulDischargerTime": 497,
+    "successfulDischargerId": 0,
+    "dischargers":
+    [{"time": 497,
       "status": "proven",
-      "timing": {
-        "dischargers": [
-          {
-            "id": 0,
-            "name": "send_leader_greatest_0",
-            "result": {
-              "data": {
-                "kind": "unsat",
-                "unsatCores": [
-                  [
-                    "_uniq.101855",
-                    "_uniq.101988"
-                  ]
-                ]
-              },
-              "status": "proven",
-              "time": 435
-            },
-            "status": {
-              "finished": {
-                "res": {
-                  "data": {
-                    "kind": "unsat",
-                    "unsatCores": [
-                      [
-                        "_uniq.101855",
-                        "_uniq.101988"
-                      ]
-                    ]
-                  },
-                  "status": "proven",
-                  "time": 435
-                }
-              }
-            },
-            "time": 435
-          }
-        ],
-        "successfulDischargerId": 0,
-        "successfulDischargerTime": 435,
-        "totalTime": 435
-      }
-    },
-    {
-      "alternativeFor": 10,
-      "id": 11,
-      "isDormant": true,
-      "metadata": {
-        "action": "send",
-        "kind": "alternative",
-        "property": "leader_greatest",
-        "style": "tr"
-      },
-      "name": "send_leader_greatest_tr",
-      "status": null,
-      "timing": {
-        "dischargers": [
-          {
-            "id": 0,
-            "name": "send_leader_greatest_tr_0",
-            "result": null,
-            "status": "notStarted",
-            "time": null
-          }
-        ],
-        "successfulDischargerId": null,
-        "successfulDischargerTime": null,
-        "totalTime": null
-      }
-    },
-    {
-      "alternativeFor": null,
-      "id": 12,
-      "isDormant": false,
-      "metadata": {
-        "action": "send",
-        "kind": "primary",
-        "property": "inv_2",
-        "style": "wp"
-      },
-      "name": "send_inv_2",
+      "result":
+      {"time": 497, "status": "proven", "data": {"unsatCores": [["_uniq.104209", "_uniq.104342"]], "kind": "unsat"}},
+      "name": "send_leader_greatest_0",
+      "id": 0}]},
+   "status": "proven",
+   "name": "send_leader_greatest",
+   "metadata": {"style": "wp", "property": "leader_greatest", "kind": "primary", "action": "send"},
+   "isDormant": false,
+   "id": 10,
+   "alternativeFor": null},
+  {"timing":
+   {"totalTime": null,
+    "successfulDischargerTime": null,
+    "successfulDischargerId": null,
+    "dischargers":
+    [{"time": null, "status": "notStarted", "result": null, "name": "send_leader_greatest_tr_0", "id": 0}]},
+   "status": null,
+   "name": "send_leader_greatest_tr",
+   "metadata": {"style": "tr", "property": "leader_greatest", "kind": "alternative", "action": "send"},
+   "isDormant": true,
+   "id": 11,
+   "alternativeFor": 10},
+  {"timing":
+   {"totalTime": 488,
+    "successfulDischargerTime": 488,
+    "successfulDischargerId": 0,
+    "dischargers":
+    [{"time": 488,
       "status": "proven",
-      "timing": {
-        "dischargers": [
-          {
-            "id": 0,
-            "name": "send_inv_2_0",
-            "result": {
-              "data": {
-                "kind": "unsat",
-                "unsatCores": [
-                  [
-                    "_uniq.102653",
-                    "_uniq.102784",
-                    "_uniq.102787"
-                  ]
-                ]
-              },
-              "status": "proven",
-              "time": 442
-            },
-            "status": {
-              "finished": {
-                "res": {
-                  "data": {
-                    "kind": "unsat",
-                    "unsatCores": [
-                      [
-                        "_uniq.102653",
-                        "_uniq.102784",
-                        "_uniq.102787"
-                      ]
-                    ]
-                  },
-                  "status": "proven",
-                  "time": 442
-                }
-              }
-            },
-            "time": 442
-          }
-        ],
-        "successfulDischargerId": 0,
-        "successfulDischargerTime": 442,
-        "totalTime": 442
-      }
-    },
-    {
-      "alternativeFor": 12,
-      "id": 13,
-      "isDormant": true,
-      "metadata": {
-        "action": "send",
-        "kind": "alternative",
-        "property": "inv_2",
-        "style": "tr"
-      },
-      "name": "send_inv_2_tr",
-      "status": null,
-      "timing": {
-        "dischargers": [
-          {
-            "id": 0,
-            "name": "send_inv_2_tr_0",
-            "result": null,
-            "status": "notStarted",
-            "time": null
-          }
-        ],
-        "successfulDischargerId": null,
-        "successfulDischargerTime": null,
-        "totalTime": null
-      }
-    },
-    {
-      "alternativeFor": null,
-      "id": 14,
-      "isDormant": false,
-      "metadata": {
-        "action": "recv",
-        "kind": "primary",
-        "property": "doesNotThrow",
-        "style": "wp"
-      },
-      "name": "recv_doesNotThrow",
+      "result":
+      {"time": 488,
+       "status": "proven",
+       "data": {"unsatCores": [["_uniq.105007", "_uniq.105138", "_uniq.105141"]], "kind": "unsat"}},
+      "name": "send_inv_2_0",
+      "id": 0}]},
+   "status": "proven",
+   "name": "send_inv_2",
+   "metadata": {"style": "wp", "property": "inv_2", "kind": "primary", "action": "send"},
+   "isDormant": false,
+   "id": 12,
+   "alternativeFor": null},
+  {"timing":
+   {"totalTime": null,
+    "successfulDischargerTime": null,
+    "successfulDischargerId": null,
+    "dischargers": [{"time": null, "status": "notStarted", "result": null, "name": "send_inv_2_tr_0", "id": 0}]},
+   "status": null,
+   "name": "send_inv_2_tr",
+   "metadata": {"style": "tr", "property": "inv_2", "kind": "alternative", "action": "send"},
+   "isDormant": true,
+   "id": 13,
+   "alternativeFor": 12},
+  {"timing":
+   {"totalTime": 470,
+    "successfulDischargerTime": 470,
+    "successfulDischargerId": 0,
+    "dischargers":
+    [{"time": 470,
       "status": "proven",
-      "timing": {
-        "dischargers": [
-          {
-            "id": 0,
-            "name": "recv_doesNotThrow_0",
-            "result": {
-              "data": {
-                "kind": "unsat",
-                "unsatCores": [
-                  []
-                ]
-              },
-              "status": "proven",
-              "time": 406
-            },
-            "status": {
-              "finished": {
-                "res": {
-                  "data": {
-                    "kind": "unsat",
-                    "unsatCores": [
-                      []
-                    ]
-                  },
-                  "status": "proven",
-                  "time": 406
-                }
-              }
-            },
-            "time": 406
-          }
-        ],
-        "successfulDischargerId": 0,
-        "successfulDischargerTime": 406,
-        "totalTime": 406
-      }
-    },
-    {
-      "alternativeFor": null,
-      "id": 15,
-      "isDormant": false,
-      "metadata": {
-        "action": "recv",
-        "kind": "primary",
-        "property": "single_leader",
-        "style": "wp"
-      },
-      "name": "recv_single_leader",
+      "result": {"time": 470, "status": "proven", "data": {"unsatCores": [[]], "kind": "unsat"}},
+      "name": "recv_doesNotThrow_0",
+      "id": 0}]},
+   "status": "proven",
+   "name": "recv_doesNotThrow",
+   "metadata": {"style": "wp", "property": "doesNotThrow", "kind": "primary", "action": "recv"},
+   "isDormant": false,
+   "id": 14,
+   "alternativeFor": null},
+  {"timing":
+   {"totalTime": 471,
+    "successfulDischargerTime": 471,
+    "successfulDischargerId": 0,
+    "dischargers":
+    [{"time": 471,
       "status": "proven",
-      "timing": {
-        "dischargers": [
-          {
-            "id": 0,
-            "name": "recv_single_leader_0",
-            "result": {
-              "data": {
-                "kind": "unsat",
-                "unsatCores": [
-                  [
-                    "_uniq.103731",
-                    "_uniq.103855",
-                    "_uniq.103891",
-                    "_uniq.103892",
-                    "_uniq.104031"
-                  ]
-                ]
-              },
-              "status": "proven",
-              "time": 391
-            },
-            "status": {
-              "finished": {
-                "res": {
-                  "data": {
-                    "kind": "unsat",
-                    "unsatCores": [
-                      [
-                        "_uniq.103731",
-                        "_uniq.103855",
-                        "_uniq.103891",
-                        "_uniq.103892",
-                        "_uniq.104031"
-                      ]
-                    ]
-                  },
-                  "status": "proven",
-                  "time": 391
-                }
-              }
-            },
-            "time": 391
-          }
-        ],
-        "successfulDischargerId": 0,
-        "successfulDischargerTime": 391,
-        "totalTime": 391
-      }
-    },
-    {
-      "alternativeFor": 15,
-      "id": 16,
-      "isDormant": true,
-      "metadata": {
-        "action": "recv",
-        "kind": "alternative",
-        "property": "single_leader",
-        "style": "tr"
-      },
-      "name": "recv_single_leader_tr",
-      "status": null,
-      "timing": {
-        "dischargers": [
-          {
-            "id": 0,
-            "name": "recv_single_leader_tr_0",
-            "result": null,
-            "status": "notStarted",
-            "time": null
-          }
-        ],
-        "successfulDischargerId": null,
-        "successfulDischargerTime": null,
-        "totalTime": null
-      }
-    },
-    {
-      "alternativeFor": null,
-      "id": 17,
-      "isDormant": false,
-      "metadata": {
-        "action": "recv",
-        "kind": "primary",
-        "property": "leader_greatest",
-        "style": "wp"
-      },
-      "name": "recv_leader_greatest",
+      "result":
+      {"time": 471,
+       "status": "proven",
+       "data":
+       {"unsatCores": [["_uniq.106085", "_uniq.106209", "_uniq.106245", "_uniq.106246", "_uniq.106385"]],
+        "kind": "unsat"}},
+      "name": "recv_single_leader_0",
+      "id": 0}]},
+   "status": "proven",
+   "name": "recv_single_leader",
+   "metadata": {"style": "wp", "property": "single_leader", "kind": "primary", "action": "recv"},
+   "isDormant": false,
+   "id": 15,
+   "alternativeFor": null},
+  {"timing":
+   {"totalTime": null,
+    "successfulDischargerTime": null,
+    "successfulDischargerId": null,
+    "dischargers":
+    [{"time": null, "status": "notStarted", "result": null, "name": "recv_single_leader_tr_0", "id": 0}]},
+   "status": null,
+   "name": "recv_single_leader_tr",
+   "metadata": {"style": "tr", "property": "single_leader", "kind": "alternative", "action": "recv"},
+   "isDormant": true,
+   "id": 16,
+   "alternativeFor": 15},
+  {"timing":
+   {"totalTime": 455,
+    "successfulDischargerTime": 455,
+    "successfulDischargerId": 0,
+    "dischargers":
+    [{"time": 455,
       "status": "proven",
-      "timing": {
-        "dischargers": [
-          {
-            "id": 0,
-            "name": "recv_leader_greatest_0",
-            "result": {
-              "data": {
-                "kind": "unsat",
-                "unsatCores": [
-                  [
-                    "_uniq.103421",
-                    "_uniq.103422",
-                    "_uniq.103560"
-                  ]
-                ]
-              },
-              "status": "proven",
-              "time": 371
-            },
-            "status": {
-              "finished": {
-                "res": {
-                  "data": {
-                    "kind": "unsat",
-                    "unsatCores": [
-                      [
-                        "_uniq.103421",
-                        "_uniq.103422",
-                        "_uniq.103560"
-                      ]
-                    ]
-                  },
-                  "status": "proven",
-                  "time": 371
-                }
-              }
-            },
-            "time": 371
-          }
-        ],
-        "successfulDischargerId": 0,
-        "successfulDischargerTime": 371,
-        "totalTime": 371
-      }
-    },
-    {
-      "alternativeFor": 17,
-      "id": 18,
-      "isDormant": true,
-      "metadata": {
-        "action": "recv",
-        "kind": "alternative",
-        "property": "leader_greatest",
-        "style": "tr"
-      },
-      "name": "recv_leader_greatest_tr",
-      "status": null,
-      "timing": {
-        "dischargers": [
-          {
-            "id": 0,
-            "name": "recv_leader_greatest_tr_0",
-            "result": null,
-            "status": "notStarted",
-            "time": null
-          }
-        ],
-        "successfulDischargerId": null,
-        "successfulDischargerTime": null,
-        "totalTime": null
-      }
-    },
-    {
-      "alternativeFor": null,
-      "id": 19,
-      "isDormant": false,
-      "metadata": {
-        "action": "recv",
-        "kind": "primary",
-        "property": "inv_2",
-        "style": "wp"
-      },
-      "name": "recv_inv_2",
-      "status": null,
-      "timing": {
-        "dischargers": [
-          {
-            "id": 0,
-            "name": "recv_inv_2_0",
-            "result": null,
-            "status": {
-              "finished": {
-                "res": {
-                  "exceptions": [
-                    "AppBuilder for `mkAppM`, too many explicit arguments provided to\n  @Ring.Theory.mk\narguments\n  #[Fin 3]"
-                  ],
-                  "status": "error",
-                  "time": 0
-                }
-              }
-            },
-            "time": null
-          }
-        ],
-        "successfulDischargerId": null,
-        "successfulDischargerTime": null,
-        "totalTime": null
-      }
-    },
-    {
-      "alternativeFor": 19,
-      "id": 20,
-      "isDormant": true,
-      "metadata": {
-        "action": "recv",
-        "kind": "alternative",
-        "property": "inv_2",
-        "style": "tr"
-      },
-      "name": "recv_inv_2_tr",
-      "status": null,
-      "timing": {
-        "dischargers": [
-          {
-            "id": 0,
-            "name": "recv_inv_2_tr_0",
-            "result": null,
-            "status": "notStarted",
-            "time": null
-          }
-        ],
-        "successfulDischargerId": null,
-        "successfulDischargerTime": null,
-        "totalTime": null
-      }
-    }
-  ]
-}
+      "result":
+      {"time": 455,
+       "status": "proven",
+       "data": {"unsatCores": [["_uniq.105775", "_uniq.105776", "_uniq.105914"]], "kind": "unsat"}},
+      "name": "recv_leader_greatest_0",
+      "id": 0}]},
+   "status": "proven",
+   "name": "recv_leader_greatest",
+   "metadata": {"style": "wp", "property": "leader_greatest", "kind": "primary", "action": "recv"},
+   "isDormant": false,
+   "id": 17,
+   "alternativeFor": null},
+  {"timing":
+   {"totalTime": null,
+    "successfulDischargerTime": null,
+    "successfulDischargerId": null,
+    "dischargers":
+    [{"time": null, "status": "notStarted", "result": null, "name": "recv_leader_greatest_tr_0", "id": 0}]},
+   "status": null,
+   "name": "recv_leader_greatest_tr",
+   "metadata": {"style": "tr", "property": "leader_greatest", "kind": "alternative", "action": "recv"},
+   "isDormant": true,
+   "id": 18,
+   "alternativeFor": 17},
+  {"timing":
+   {"totalTime": 287,
+    "successfulDischargerTime": null,
+    "successfulDischargerId": null,
+    "dischargers":
+    [{"time": 287,
+      "status": "disproven",
+      "result":
+      {"time": 287,
+       "status": "disproven",
+       "data":
+       {"kind": "sat",
+        "counterexamples":
+        [{"structuredJson":
+          {"theory": {},
+           "preState": {"pending": [[0, 2]], "leader": []},
+           "postState": null,
+           "label": {"recv": {"sender": 0, "next": 0, "n": 2}},
+           "instantiation": {"node": "Fin 3"}},
+          "raw": {"values": 8, "sorts": 1},
+          "html": "<p>Counter-example HTML</p>"}]}},
+      "name": "recv_inv_2_0",
+      "id": 0}]},
+   "status": "disproven",
+   "name": "recv_inv_2",
+   "metadata": {"style": "wp", "property": "inv_2", "kind": "primary", "action": "recv"},
+   "isDormant": false,
+   "id": 19,
+   "alternativeFor": null},
+  {"timing":
+   {"totalTime": 802,
+    "successfulDischargerTime": null,
+    "successfulDischargerId": null,
+    "dischargers":
+    [{"time": 802,
+      "status": "disproven",
+      "result":
+      {"time": 802,
+       "status": "disproven",
+       "data":
+       {"kind": "sat",
+        "counterexamples":
+        [{"structuredJson":
+          {"theory": {},
+           "preState": {"pending": [[0, 0], [0, 1], [0, 2], [1, 0], [1, 2], [2, 0], [2, 1]], "leader": [0]},
+           "postState": {"pending": [[0, 0], [0, 1], [0, 2], [1, 0], [1, 2], [2, 0], [2, 1], [2, 2]], "leader": [0]},
+           "label": {"recv": {"sender": 2, "next": 2, "n": 1}},
+           "instantiation": {"node": "Fin 3"}},
+          "raw": {"values": 12, "sorts": 1},
+          "html": "<p>Counter-example HTML</p>"}]}},
+      "name": "recv_inv_2_tr_0",
+      "id": 0}]},
+   "status": "disproven",
+   "name": "recv_inv_2_tr",
+   "metadata": {"style": "tr", "property": "inv_2", "kind": "alternative", "action": "recv"},
+   "isDormant": false,
+   "id": 20,
+   "alternativeFor": 19}],
+ "totalVCs": 21,
+ "totalTime": 5049,
+ "totalSolved": 11,
+ "totalDischarged": 13}
 
 
 instance : Lean.Server.RpcEncodable Unit where
