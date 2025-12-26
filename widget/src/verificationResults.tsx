@@ -13,7 +13,7 @@ interface VCMetadata {
 
 interface Counterexample {
   model?: any;
-  html: Html;
+  html: Html | string;  // Can be either structured Html or raw HTML string
 }
 
 interface DischargerResultData {
@@ -325,7 +325,10 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC }) => {
             )}
           </div>
           <div className="counterexample-content">
-            <HtmlDisplay html={activeCounterexample.html} />
+            {typeof activeCounterexample.html === 'string'
+              ? <span dangerouslySetInnerHTML={{ __html: activeCounterexample.html }} />
+              : <HtmlDisplay html={activeCounterexample.html} />
+            }
           </div>
         </div>
       )}
