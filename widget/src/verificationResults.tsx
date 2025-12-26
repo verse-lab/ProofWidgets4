@@ -29,6 +29,8 @@ interface StructuredJson {
   postState: Record<string, unknown> | null;
   label: Record<string, unknown>;
   instantiation: Record<string, unknown>;
+  extraVals?: Record<string, unknown>;
+  extraSorts?: Record<string, unknown>;
 }
 
 interface Counterexample {
@@ -149,13 +151,49 @@ const StatePanel: React.FC<{
   );
 };
 
+/** Collapsible panel component for displaying fields */
+const CollapsibleFieldsPanel: React.FC<{
+  title: string;
+  fields: Record<string, unknown>;
+  defaultExpanded?: boolean;
+}> = ({ title, fields, defaultExpanded = false }) => {
+  const [expanded, setExpanded] = React.useState(defaultExpanded);
+  const entries = Object.entries(fields);
+
+  return (
+    <div className="cex-theory-panel">
+      <div
+        className="cex-theory-header"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <span className="cex-theory-toggle">{expanded ? '▼' : '▶'}</span>
+        <span className="cex-theory-label">{title}</span>
+        <span className="cex-theory-count">({entries.length} {entries.length === 1 ? 'field' : 'fields'})</span>
+      </div>
+      {expanded && (
+        <div className="cex-theory-body">
+          {entries.length === 0 ? (
+            <div className="cex-empty-state">No fields</div>
+          ) : (
+            <div className="cex-kv-table">
+              {entries.map(([k, v]) => (
+                <CexKVRow key={k} k={k} v={v} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 /** Structured counterexample view with side-by-side pre/post states */
 const StructuredCexView: React.FC<{
   data: StructuredJson;
   property: string;
   headerRightContent?: React.ReactNode;
 }> = ({ data, property, headerRightContent }) => {
-  const { preState, postState, label, instantiation } = data;
+  const { theory, preState, postState, label, instantiation, extraVals } = data;
 
   // State for toolbar features
   const [showRemovals, setShowRemovals] = React.useState(false);
@@ -226,6 +264,27 @@ const StructuredCexView: React.FC<{
     }
     return filtered;
   }, [changes, hiddenFields, showRemovals]);
+
+  // Split extraVals: items with '.' in name go to theory, others stay as extra values
+  const { combinedTheory, remainingExtraVals } = React.useMemo(() => {
+    const theoryFromExtras: Record<string, unknown> = {};
+    const otherExtras: Record<string, unknown> = {};
+
+    if (extraVals) {
+      for (const [k, v] of Object.entries(extraVals)) {
+        if (k.includes('.')) {
+          theoryFromExtras[k] = v;
+        } else {
+          otherExtras[k] = v;
+        }
+      }
+    }
+
+    // Merge original theory with theory items from extraVals
+    const combined = { ...theory, ...theoryFromExtras };
+
+    return { combinedTheory: combined, remainingExtraVals: otherExtras };
+  }, [theory, extraVals]);
 
   const toggleFieldVisibility = (fieldName: string) => {
     setHiddenFields(prev => {
@@ -311,6 +370,11 @@ const StructuredCexView: React.FC<{
         </div>
       )}
 
+      {/* Theory (collapsible, expanded by default) */}
+      {Object.keys(combinedTheory).length > 0 && (
+        <CollapsibleFieldsPanel title="Theory" fields={combinedTheory} defaultExpanded={true} />
+      )}
+
       {/* Centered action chip above panels (when side-by-side) */}
       {isWideEnough && (
         <div className="cex-action-row">
@@ -340,6 +404,11 @@ const StructuredCexView: React.FC<{
           />
         )}
       </div>
+
+      {/* Extra Values (collapsible, collapsed by default, shown below states) */}
+      {Object.keys(remainingExtraVals).length > 0 && (
+        <CollapsibleFieldsPanel title="Extra Values" fields={remainingExtraVals} />
+      )}
 
       {/* Filter panel modal */}
       {showFilterPanel && (
@@ -1409,6 +1478,58 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
     }
 
     ${generateFilterPanelCSS('cex')}
+
+    /* Theory panel styles (collapsible) */
+    .cex-theory-panel {
+      margin-bottom: 12px;
+      background: var(--vscode-editor-background);
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    /* Add gap when theory panel follows states container (for Extra Values) */
+    .cex-states-container + .cex-theory-panel {
+      margin-top: 12px;
+    }
+
+    .cex-theory-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--vscode-editorGroupHeader-tabsBackground);
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.2s;
+    }
+
+    .cex-theory-header:hover {
+      background: var(--vscode-list-hoverBackground);
+    }
+
+    .cex-theory-toggle {
+      font-size: 10px;
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .cex-theory-label {
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--vscode-foreground);
+    }
+
+    .cex-theory-count {
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .cex-theory-body {
+      padding: 8px;
+      border-top: 1px solid var(--vscode-panel-border);
+    }
 
   `, [statusColors]);
 
