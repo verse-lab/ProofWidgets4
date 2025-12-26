@@ -1,5 +1,17 @@
 import * as React from 'react';
 import HtmlDisplay, { Html } from './htmlDisplay';
+import {
+  ChangeInfo,
+  diffChanges,
+  CopyButton,
+  formatActionLabel,
+  renderValue,
+  sharedDiffCSS,
+  sharedListCSS,
+  generateFilterPanelCSS,
+  generateJsonViewCSS,
+  generateToggleLinkCSS,
+} from './veilUtils';
 
 // ========== Types ==========
 
@@ -85,299 +97,6 @@ type StatusFilter = 'all' | 'proven' | 'disproven' | 'unknown' | 'error' | 'pend
 
 // ========== Helpers ==========
 
-/* ================= Diff helpers for structured counterexamples ================= */
-function deepEqual(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
-  if (a == null || b == null) return a === b;
-
-  if (Array.isArray(a) && Array.isArray(b)) {
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) {
-      if (!deepEqual(a[i], b[i])) return false;
-    }
-    return true;
-  }
-
-  if (typeof a === 'object' && typeof b === 'object') {
-    const ao = a as Record<string, unknown>;
-    const bo = b as Record<string, unknown>;
-    const ak = Object.keys(ao);
-    const bk = Object.keys(bo);
-    if (ak.length !== bk.length) return false;
-    for (const k of ak) {
-      if (!(k in bo)) return false;
-      if (!deepEqual(ao[k], bo[k])) return false;
-    }
-    return true;
-  }
-
-  return false;
-}
-
-/** Merged element for array diff display */
-interface MergedElement {
-  element: unknown;
-  status: 'unchanged' | 'added' | 'removed';
-}
-
-/** Compute a merged view that interleaves removed elements at their original positions */
-function computeMergedView(prev: unknown[], curr: unknown[]): MergedElement[] {
-  const result: MergedElement[] = [];
-  const currUsed = new Array(curr.length).fill(false);
-
-  // Walk through prev in order to maintain original positions
-  for (const prevEl of prev) {
-    // Find this element in curr (first unused match)
-    const currIdx = curr.findIndex((c, i) => !currUsed[i] && deepEqual(c, prevEl));
-    if (currIdx !== -1) {
-      // Element still exists
-      currUsed[currIdx] = true;
-      result.push({ element: prevEl, status: 'unchanged' });
-    } else {
-      // Element was removed - insert at original position
-      result.push({ element: prevEl, status: 'removed' });
-    }
-  }
-
-  // Append new elements from curr (elements that weren't in prev)
-  for (let i = 0; i < curr.length; i++) {
-    if (!currUsed[i]) {
-      result.push({ element: curr[i], status: 'added' });
-    }
-  }
-
-  return result;
-}
-
-/** Value change info for structured counterexample diff */
-type ChangeInfo =
-  | { type: 'full' }
-  | { type: 'array'; mergedView: MergedElement[] }
-  | { type: 'none' };
-
-/** Compute change information for each field between pre and post state */
-function diffChanges(
-  prev: Record<string, unknown> | undefined | null,
-  curr: Record<string, unknown>
-): Map<string, ChangeInfo> {
-  const changes = new Map<string, ChangeInfo>();
-  if (!prev) return changes;
-
-  const keys = new Set<string>([...Object.keys(prev), ...Object.keys(curr)]);
-  for (const k of keys) {
-    const hasA = k in prev;
-    const hasB = k in curr;
-
-    if (!hasA || !hasB) {
-      changes.set(k, { type: 'full' });
-      continue;
-    }
-
-    const prevVal = (prev as any)[k];
-    const currVal = (curr as any)[k];
-
-    if (deepEqual(prevVal, currVal)) {
-      continue;
-    }
-
-    if (Array.isArray(prevVal) && Array.isArray(currVal)) {
-      // Compute merged view with elements in original order
-      const mergedView = computeMergedView(prevVal, currVal);
-      // Only mark as changed if there are actual additions or removals
-      const hasChanges = mergedView.some(m => m.status !== 'unchanged');
-      if (hasChanges) {
-        changes.set(k, { type: 'array', mergedView });
-      }
-    } else {
-      changes.set(k, { type: 'full' });
-    }
-  }
-
-  return changes;
-}
-
-/* ================= Rendering helpers for structured counterexamples ================= */
-
-/** Concatenate React nodes with separator */
-function joinNodes(nodes: React.ReactNode[], sep: React.ReactNode = ', '): React.ReactNode {
-  const out: React.ReactNode[] = [];
-  nodes.forEach((n, i) => {
-    out.push(<span key={`n-${i}`}>{n}</span>);
-    if (i < nodes.length - 1) out.push(<span key={`s-${i}`}>{sep}</span>);
-  });
-  return <>{out}</>;
-}
-
-/** Render any value inline */
-function renderValueInline(x: unknown): React.ReactNode {
-  if (Array.isArray(x)) {
-    const elements = x.map((el, i) => <span key={i}>{renderValueInline(el)}</span>);
-    return <code>[{joinNodes(elements)}]</code>;
-  }
-  if (typeof x === 'object' && x !== null) {
-    return <code>{JSON.stringify(x)}</code>;
-  }
-  if (typeof x === 'string') {
-    return <code>{x}</code>;
-  }
-  return <code>{String(x)}</code>;
-}
-
-/** Render a row from an inner array with optional highlighting */
-function renderRowFromInnerArray(e: unknown, status?: 'unchanged' | 'added' | 'removed'): React.ReactNode {
-  const className = status === 'added' ? 'cex-changed-element' : status === 'removed' ? 'cex-removed-element' : undefined;
-
-  if (Array.isArray(e)) {
-    const isFlatTuple = e.every(el => !Array.isArray(el));
-    if (isFlatTuple) {
-      const parts: React.ReactNode[] = [];
-      e.forEach((el, i) => {
-        parts.push(renderValueInline(el));
-        if (i < e.length - 1) parts.push(', ');
-      });
-      const code = <code>({parts})</code>;
-      return className ? <span className={className}>{code}</span> : code;
-    } else {
-      const content = renderValueInline(e);
-      return className ? <span className={className}>{content}</span> : content;
-    }
-  }
-  return renderCexValue(e);
-}
-
-/** Render inline array using merged view for proper ordering */
-function renderInlineArrayMerged(mergedView: MergedElement[]): React.ReactNode {
-  const parts: React.ReactNode[] = [];
-
-  mergedView.forEach((item, i) => {
-    const element = renderValueInline(item.element);
-    const className = item.status === 'added' ? 'cex-changed-element' : item.status === 'removed' ? 'cex-removed-element' : undefined;
-    parts.push(className ? <span key={i} className={className}>{element}</span> : <span key={i}>{element}</span>);
-    if (i < mergedView.length - 1) parts.push(<span key={`comma-${i}`}>, </span>);
-  });
-  return <code>[{parts}]</code>;
-}
-
-/** Render inline array (when no diff info available) */
-function renderInlineArray(arr: unknown[]): React.ReactNode {
-  const parts: React.ReactNode[] = [];
-  arr.forEach((e, i) => {
-    parts.push(<span key={i}>{renderValueInline(e)}</span>);
-    if (i < arr.length - 1) parts.push(<span key={`comma-${i}`}>, </span>);
-  });
-  return <code>[{parts}]</code>;
-}
-
-/** Render a value for structured counterexample display */
-function renderCexValue(v: unknown, mergedView?: MergedElement[]): React.ReactNode {
-  if (Array.isArray(v)) {
-    // Handle empty array with no changes
-    if (v.length === 0 && (!mergedView || mergedView.length === 0)) {
-      return <code>[]</code>;
-    }
-
-    // If we have a merged view, use it for rendering
-    if (mergedView && mergedView.length > 0) {
-      // Check if any element contains inner arrays
-      const hasInnerArray = mergedView.some(m => Array.isArray(m.element));
-
-      if (hasInnerArray) {
-        return (
-          <ul className="cex-list">
-            {mergedView.map((item, i) => (
-              <li key={i}>{renderRowFromInnerArray(item.element, item.status)}</li>
-            ))}
-          </ul>
-        );
-      }
-
-      return renderInlineArrayMerged(mergedView);
-    }
-
-    // No merged view - render without diff highlighting
-    const hasInnerArray = v.some(Array.isArray);
-    if (hasInnerArray) {
-      return (
-        <ul className="cex-list">
-          {v.map((e, i) => (
-            <li key={i}>{renderRowFromInnerArray(e)}</li>
-          ))}
-        </ul>
-      );
-    }
-
-    return renderInlineArray(v);
-  }
-
-  if (typeof v === 'object' && v !== null) {
-    return <code>{JSON.stringify(v)}</code>;
-  }
-
-  if (typeof v === 'string') {
-    return <code>{v}</code>;
-  }
-
-  return <code>{String(v)}</code>;
-}
-
-/** Format a label/action object like {"recv": {"sender": 2, ...}} */
-function formatLabel(label: Record<string, unknown>): string {
-  const keys = Object.keys(label);
-  if (keys.length === 1) {
-    let actionName = keys[0];
-    if (actionName.startsWith("_")) {
-      actionName = actionName.slice(1);
-    }
-    const args = label[keys[0]];
-    if (typeof args === "object" && args !== null && !Array.isArray(args)) {
-      const argObj = args as Record<string, unknown>;
-      const argKeys = Object.keys(argObj);
-      if (argKeys.length > 0) {
-        const formatValue = (v: unknown): string => {
-          if (typeof v === "string") return v;
-          if (typeof v === "number" || typeof v === "boolean") return String(v);
-          return JSON.stringify(v);
-        };
-        const argStr = argKeys.map((k) => `${k} = ${formatValue(argObj[k])}`).join(", ");
-        return `${actionName}(${argStr})`;
-      }
-    }
-    return actionName;
-  }
-  return JSON.stringify(label);
-}
-
-/** Copy button component */
-const CopyButton: React.FC<{ text: string; className?: string }> = ({ text, className }) => {
-  const [copied, setCopied] = React.useState(false);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
-    }
-  };
-
-  return (
-    <button className={className} onClick={handleCopy} title="Copy to clipboard">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        {copied ? (
-          <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
-        ) : (
-          <>
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-          </>
-        )}
-      </svg>
-      {copied ? 'Copied!' : 'Copy JSON'}
-    </button>
-  );
-};
-
 /** Key-value row component for state display */
 const CexKVRow: React.FC<{
   k: string;
@@ -392,7 +111,7 @@ const CexKVRow: React.FC<{
       <div className="cex-kv-key"><code>{k}</code></div>
       <div className="cex-kv-sep">↦</div>
       <div className="cex-kv-val">
-        {renderCexValue(v, mergedView)}
+        {renderValue(v, mergedView)}
       </div>
     </div>
   );
@@ -598,7 +317,7 @@ const StructuredCexView: React.FC<{
             <div className="cex-connector-line" />
           </div>
           <div className="cex-transition-center">
-            <span className="cex-action-chip">{formatLabel(label)}</span>
+            <span className="cex-action-chip">{formatActionLabel(label)}</span>
           </div>
           <div className="cex-transition-column">
             <div className="cex-connector-line" />
@@ -1401,65 +1120,8 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
       margin-bottom: 8px;
     }
 
-    .vr-toggle-link {
-      font-size: 11px;
-      color: var(--vscode-textLink-foreground);
-      cursor: pointer;
-      text-decoration: none;
-      background: none;
-      border: none;
-      padding: 2px 6px;
-      border-radius: 3px;
-    }
-
-    .vr-toggle-link:hover {
-      text-decoration: underline;
-      background: var(--vscode-toolbar-hoverBackground);
-    }
-
-    .vr-json-view {
-      position: relative;
-      background: var(--vscode-editor-background);
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 6px;
-      max-height: 600px;
-    }
-    .vr-json-content {
-      padding: 12px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-      font-size: 12px;
-      white-space: pre;
-      overflow: auto;
-      max-height: 600px;
-    }
-    .vr-copy-button {
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 11px;
-      color: var(--vscode-button-foreground);
-      background: var(--vscode-button-background);
-      border: none;
-      border-radius: 4px;
-      padding: 4px 8px;
-      cursor: pointer;
-      transition: background 0.15s, opacity 0.15s;
-      opacity: 0;
-    }
-    .vr-json-view:hover .vr-copy-button,
-    .vr-json-content:hover ~ .vr-copy-button {
-      opacity: 1;
-    }
-    .vr-copy-button:hover {
-      background: var(--vscode-button-hoverBackground);
-    }
-    .vr-copy-button svg {
-      width: 14px;
-      height: 14px;
-    }
+    ${generateToggleLinkCSS('vr')}
+    ${generateJsonViewCSS('vr')}
 
     /* Structured counterexample styles */
     .counterexample-toggles {
@@ -1739,38 +1401,8 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
       color: var(--vscode-foreground);
     }
 
-    .cex-changed-element {
-      background: var(--vscode-diffEditor-insertedTextBackground, rgba(0, 255, 0, 0.2));
-      border-radius: 3px;
-      padding: 2px 4px;
-      box-shadow: 0 0 0 2px var(--vscode-diffEditor-insertedLineBackground, rgba(0, 255, 0, 0.3));
-      color: var(--vscode-editor-foreground);
-    }
-
-    .cex-removed-element {
-      background: var(--vscode-diffEditor-removedTextBackground, rgba(255, 0, 0, 0.2));
-      border-radius: 3px;
-      padding: 2px 4px;
-      box-shadow: 0 0 0 2px var(--vscode-diffEditor-removedLineBackground, rgba(255, 0, 0, 0.3));
-      color: var(--vscode-editor-foreground);
-      text-decoration: line-through;
-      opacity: 0.8;
-    }
-
-    .cex-list {
-      margin: 4px 0 0 0;
-      padding: 0;
-      list-style: none;
-    }
-
-    .cex-list li {
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 11px;
-      line-height: 1.4;
-      background: transparent;
-      color: var(--vscode-foreground);
-      margin: 2px 0;
-    }
+    ${sharedDiffCSS}
+    ${sharedListCSS}
 
     .cex-toolbar {
       display: flex;
@@ -1793,104 +1425,7 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
       background: var(--vscode-toolbar-hoverBackground);
     }
 
-    .cex-filter-active {
-      color: var(--vscode-notificationsInfoIcon-foreground, #3794ff);
-      font-weight: 600;
-    }
-
-    .cex-filter-backdrop {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.3);
-      z-index: 999;
-    }
-
-    .cex-filter-panel {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      z-index: 1000;
-      min-width: 250px;
-      max-width: 90vw;
-      max-height: 400px;
-      background: var(--vscode-editorWidget-background);
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 8px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-      overflow: hidden;
-    }
-
-    .cex-filter-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 12px;
-      border-bottom: 1px solid var(--vscode-panel-border);
-      font-weight: 600;
-      font-size: 12px;
-    }
-
-    .cex-filter-actions {
-      display: flex;
-      gap: 8px;
-    }
-
-    .cex-filter-action {
-      font-size: 10px;
-      color: var(--vscode-textLink-foreground);
-      background: none;
-      border: none;
-      cursor: pointer;
-      padding: 2px 4px;
-    }
-
-    .cex-filter-action:hover {
-      text-decoration: underline;
-    }
-
-    .cex-filter-close {
-      font-size: 18px;
-      line-height: 1;
-      color: var(--vscode-foreground);
-      background: none;
-      border: none;
-      cursor: pointer;
-      padding: 0 4px;
-      margin-left: 8px;
-      opacity: 0.7;
-    }
-
-    .cex-filter-close:hover {
-      opacity: 1;
-    }
-
-    .cex-filter-list {
-      padding: 8px;
-      max-height: 240px;
-      overflow-y: auto;
-    }
-
-    .cex-filter-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 4px;
-      cursor: pointer;
-      border-radius: 3px;
-      font-size: 12px;
-    }
-
-    .cex-filter-item:hover {
-      background: var(--vscode-list-hoverBackground);
-    }
-
-    .cex-filter-item input {
-      margin: 0;
-    }
+    ${generateFilterPanelCSS('cex')}
 
   `, [statusColors]);
 
