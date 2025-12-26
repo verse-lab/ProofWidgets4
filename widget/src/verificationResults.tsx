@@ -114,35 +114,45 @@ function deepEqual(a: unknown, b: unknown): boolean {
   return false;
 }
 
-/** Find elements in prev that are not in curr (content-based comparison) */
-function findRemovedElements(prev: unknown[], curr: unknown[]): unknown[] {
-  const removed: unknown[] = [];
-  for (const prevEl of prev) {
-    const existsInCurr = curr.some(currEl => deepEqual(prevEl, currEl));
-    if (!existsInCurr) {
-      removed.push(prevEl);
-    }
-  }
-  return removed;
+/** Merged element for array diff display */
+interface MergedElement {
+  element: unknown;
+  status: 'unchanged' | 'added' | 'removed';
 }
 
-/** Find indices in curr that contain newly added elements (not in prev) */
-function findAddedIndices(prev: unknown[], curr: unknown[]): Set<number> {
-  const added = new Set<number>();
-  for (let i = 0; i < curr.length; i++) {
-    const currEl = curr[i];
-    const existedInPrev = prev.some(prevEl => deepEqual(prevEl, currEl));
-    if (!existedInPrev) {
-      added.add(i);
+/** Compute a merged view that interleaves removed elements at their original positions */
+function computeMergedView(prev: unknown[], curr: unknown[]): MergedElement[] {
+  const result: MergedElement[] = [];
+  const currUsed = new Array(curr.length).fill(false);
+
+  // Walk through prev in order to maintain original positions
+  for (const prevEl of prev) {
+    // Find this element in curr (first unused match)
+    const currIdx = curr.findIndex((c, i) => !currUsed[i] && deepEqual(c, prevEl));
+    if (currIdx !== -1) {
+      // Element still exists
+      currUsed[currIdx] = true;
+      result.push({ element: prevEl, status: 'unchanged' });
+    } else {
+      // Element was removed - insert at original position
+      result.push({ element: prevEl, status: 'removed' });
     }
   }
-  return added;
+
+  // Append new elements from curr (elements that weren't in prev)
+  for (let i = 0; i < curr.length; i++) {
+    if (!currUsed[i]) {
+      result.push({ element: curr[i], status: 'added' });
+    }
+  }
+
+  return result;
 }
 
 /** Value change info for structured counterexample diff */
 type ChangeInfo =
   | { type: 'full' }
-  | { type: 'array'; changedIndices: Set<number>; removedElements: unknown[] }
+  | { type: 'array'; mergedView: MergedElement[] }
   | { type: 'none' };
 
 /** Compute change information for each field between pre and post state */
@@ -171,10 +181,12 @@ function diffChanges(
     }
 
     if (Array.isArray(prevVal) && Array.isArray(currVal)) {
-      const addedIndices = findAddedIndices(prevVal, currVal);
-      const removedElements = findRemovedElements(prevVal, currVal);
-      if (addedIndices.size > 0 || removedElements.length > 0) {
-        changes.set(k, { type: 'array', changedIndices: addedIndices, removedElements });
+      // Compute merged view with elements in original order
+      const mergedView = computeMergedView(prevVal, currVal);
+      // Only mark as changed if there are actual additions or removals
+      const hasChanges = mergedView.some(m => m.status !== 'unchanged');
+      if (hasChanges) {
+        changes.set(k, { type: 'array', mergedView });
       }
     } else {
       changes.set(k, { type: 'full' });
@@ -197,27 +209,23 @@ function joinNodes(nodes: React.ReactNode[], sep: React.ReactNode = ', '): React
 }
 
 /** Render any value inline */
-function renderValueInline(x: unknown, changedIndices?: Set<number>, index?: number): React.ReactNode {
-  const isChanged = changedIndices !== undefined && index !== undefined && changedIndices.has(index);
-
+function renderValueInline(x: unknown): React.ReactNode {
   if (Array.isArray(x)) {
-    const elements = x.map((el, i) => renderValueInline(el, changedIndices, i));
+    const elements = x.map((el, i) => <span key={i}>{renderValueInline(el)}</span>);
     return <code>[{joinNodes(elements)}]</code>;
   }
   if (typeof x === 'object' && x !== null) {
-    const content = JSON.stringify(x);
-    return isChanged ? <code className="cex-changed-element">{content}</code> : <code>{content}</code>;
+    return <code>{JSON.stringify(x)}</code>;
   }
   if (typeof x === 'string') {
-    return isChanged ? <code className="cex-changed-element">{x}</code> : <code>{x}</code>;
+    return <code>{x}</code>;
   }
-  const content = String(x);
-  return isChanged ? <code className="cex-changed-element">{content}</code> : <code>{content}</code>;
+  return <code>{String(x)}</code>;
 }
 
 /** Render a row from an inner array with optional highlighting */
-function renderRowFromInnerArray(e: unknown, changedIndices?: Set<number>, index?: number): React.ReactNode {
-  const isChanged = changedIndices !== undefined && index !== undefined && changedIndices.has(index);
+function renderRowFromInnerArray(e: unknown, status?: 'unchanged' | 'added' | 'removed'): React.ReactNode {
+  const className = status === 'added' ? 'cex-changed-element' : status === 'removed' ? 'cex-removed-element' : undefined;
 
   if (Array.isArray(e)) {
     const isFlatTuple = e.every(el => !Array.isArray(el));
@@ -228,77 +236,77 @@ function renderRowFromInnerArray(e: unknown, changedIndices?: Set<number>, index
         if (i < e.length - 1) parts.push(', ');
       });
       const code = <code>({parts})</code>;
-      return isChanged ? <span className="cex-changed-element">{code}</span> : code;
+      return className ? <span className={className}>{code}</span> : code;
     } else {
       const content = renderValueInline(e);
-      return isChanged ? <span className="cex-changed-element">{content}</span> : content;
+      return className ? <span className={className}>{content}</span> : content;
     }
   }
   return renderCexValue(e);
 }
 
-/** Render a single removed element */
-function renderRemovedElement(e: unknown, index: number): React.ReactNode {
-  if (Array.isArray(e)) {
-    const isFlatTuple = e.every(el => !Array.isArray(el));
-    if (isFlatTuple) {
-      const parts: React.ReactNode[] = [];
-      e.forEach((el, i) => {
-        parts.push(renderValueInline(el));
-        if (i < e.length - 1) parts.push(', ');
-      });
-      return <span key={`removed-${index}`} className="cex-removed-element"><code>({parts})</code></span>;
-    } else {
-      return <span key={`removed-${index}`} className="cex-removed-element">{renderValueInline(e)}</span>;
-    }
-  }
-  return <span key={`removed-${index}`} className="cex-removed-element">{renderValueInline(e)}</span>;
-}
-
-/** Render inline array with change highlighting */
-function renderInlineArray(arr: unknown[], changedIndices?: Set<number>, removedElements?: unknown[]): React.ReactNode {
+/** Render inline array using merged view for proper ordering */
+function renderInlineArrayMerged(mergedView: MergedElement[]): React.ReactNode {
   const parts: React.ReactNode[] = [];
 
-  if (removedElements && removedElements.length > 0) {
-    removedElements.forEach((e, i) => {
-      parts.push(<span key={`removed-${i}`} className="cex-removed-element">{renderValueInline(e)}</span>);
-      parts.push(<span key={`removed-comma-${i}`}>, </span>);
-    });
-  }
+  mergedView.forEach((item, i) => {
+    const element = renderValueInline(item.element);
+    const className = item.status === 'added' ? 'cex-changed-element' : item.status === 'removed' ? 'cex-removed-element' : undefined;
+    parts.push(className ? <span key={i} className={className}>{element}</span> : <span key={i}>{element}</span>);
+    if (i < mergedView.length - 1) parts.push(<span key={`comma-${i}`}>, </span>);
+  });
+  return <code>[{parts}]</code>;
+}
 
+/** Render inline array (when no diff info available) */
+function renderInlineArray(arr: unknown[]): React.ReactNode {
+  const parts: React.ReactNode[] = [];
   arr.forEach((e, i) => {
-    const isChanged = changedIndices !== undefined && changedIndices.has(i);
-    const element = renderValueInline(e);
-    parts.push(isChanged ? <span key={i} className="cex-changed-element">{element}</span> : <span key={i}>{element}</span>);
+    parts.push(<span key={i}>{renderValueInline(e)}</span>);
     if (i < arr.length - 1) parts.push(<span key={`comma-${i}`}>, </span>);
   });
   return <code>[{parts}]</code>;
 }
 
 /** Render a value for structured counterexample display */
-function renderCexValue(v: unknown, changedIndices?: Set<number>, removedElements?: unknown[]): React.ReactNode {
+function renderCexValue(v: unknown, mergedView?: MergedElement[]): React.ReactNode {
   if (Array.isArray(v)) {
-    if (v.length === 0 && (!removedElements || removedElements.length === 0)) {
+    // Handle empty array with no changes
+    if (v.length === 0 && (!mergedView || mergedView.length === 0)) {
       return <code>[]</code>;
     }
 
-    const hasInnerArray = v.some(Array.isArray);
-    const removedHasInnerArray = removedElements?.some(Array.isArray) ?? false;
+    // If we have a merged view, use it for rendering
+    if (mergedView && mergedView.length > 0) {
+      // Check if any element contains inner arrays
+      const hasInnerArray = mergedView.some(m => Array.isArray(m.element));
 
-    if (hasInnerArray || removedHasInnerArray) {
+      if (hasInnerArray) {
+        return (
+          <ul className="cex-list">
+            {mergedView.map((item, i) => (
+              <li key={i}>{renderRowFromInnerArray(item.element, item.status)}</li>
+            ))}
+          </ul>
+        );
+      }
+
+      return renderInlineArrayMerged(mergedView);
+    }
+
+    // No merged view - render without diff highlighting
+    const hasInnerArray = v.some(Array.isArray);
+    if (hasInnerArray) {
       return (
         <ul className="cex-list">
-          {removedElements?.map((e, i) => (
-            <li key={`removed-${i}`}>{renderRemovedElement(e, i)}</li>
-          ))}
           {v.map((e, i) => (
-            <li key={i}>{renderRowFromInnerArray(e, changedIndices, i)}</li>
+            <li key={i}>{renderRowFromInnerArray(e)}</li>
           ))}
         </ul>
       );
     }
 
-    return renderInlineArray(v, changedIndices, removedElements);
+    return renderInlineArray(v);
   }
 
   if (typeof v === 'object' && v !== null) {
@@ -377,15 +385,14 @@ const CexKVRow: React.FC<{
   changeInfo?: ChangeInfo;
 }> = ({ k, v, changeInfo }) => {
   const hasChange = changeInfo?.type === 'full' || changeInfo?.type === 'array';
-  const changedIndices = changeInfo?.type === 'array' ? changeInfo.changedIndices : undefined;
-  const removedElements = changeInfo?.type === 'array' ? changeInfo.removedElements : undefined;
+  const mergedView = changeInfo?.type === 'array' ? changeInfo.mergedView : undefined;
 
   return (
     <div className={`cex-kv-row ${hasChange ? 'changed' : ''}`}>
       <div className="cex-kv-key"><code>{k}</code></div>
       <div className="cex-kv-sep">↦</div>
       <div className="cex-kv-val">
-        {renderCexValue(v, changedIndices, removedElements)}
+        {renderCexValue(v, mergedView)}
       </div>
     </div>
   );
@@ -486,7 +493,9 @@ const StructuredCexView: React.FC<{
     for (const [k, info] of changes) {
       if (hiddenFields.has(k)) continue;
       if (!showRemovals && info.type === 'array') {
-        filtered.set(k, { type: 'array', changedIndices: info.changedIndices, removedElements: [] });
+        // Filter out removed elements when showRemovals is false
+        const filteredMergedView = info.mergedView.filter(m => m.status !== 'removed');
+        filtered.set(k, { type: 'array', mergedView: filteredMergedView });
       } else {
         filtered.set(k, info);
       }

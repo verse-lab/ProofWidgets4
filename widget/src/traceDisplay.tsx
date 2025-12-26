@@ -121,37 +121,45 @@ function deepEqual(a: unknown, b: unknown): boolean {
   return false;
 }
 
+/** Merged element for array diff display */
+interface MergedElement {
+  element: unknown;
+  status: 'unchanged' | 'added' | 'removed';
+}
+
 /** Value change info: either the whole value changed, or specific array indices changed */
 type ChangeInfo =
   | { type: 'full' }  // Entire value changed (non-array or structural change)
-  | { type: 'array'; changedIndices: Set<number>; removedElements: unknown[] }  // Array with specific elements changed and removed items
+  | { type: 'array'; mergedView: MergedElement[] }  // Array with merged view showing elements in original order
   | { type: 'none' };  // No change
 
-/** Find elements in prev that are not in curr (content-based comparison) */
-function findRemovedElements(prev: unknown[], curr: unknown[]): unknown[] {
-  const removed: unknown[] = [];
-  for (const prevEl of prev) {
-    // Check if this element exists anywhere in curr
-    const existsInCurr = curr.some(currEl => deepEqual(prevEl, currEl));
-    if (!existsInCurr) {
-      removed.push(prevEl);
-    }
-  }
-  return removed;
-}
+/** Compute a merged view that interleaves removed elements at their original positions */
+function computeMergedView(prev: unknown[], curr: unknown[]): MergedElement[] {
+  const result: MergedElement[] = [];
+  const currUsed = new Array(curr.length).fill(false);
 
-/** Find indices in curr that contain newly added elements (not in prev) */
-function findAddedIndices(prev: unknown[], curr: unknown[]): Set<number> {
-  const added = new Set<number>();
-  for (let i = 0; i < curr.length; i++) {
-    const currEl = curr[i];
-    // Check if this element existed anywhere in prev
-    const existedInPrev = prev.some(prevEl => deepEqual(prevEl, currEl));
-    if (!existedInPrev) {
-      added.add(i);
+  // Walk through prev in order to maintain original positions
+  for (const prevEl of prev) {
+    // Find this element in curr (first unused match)
+    const currIdx = curr.findIndex((c, i) => !currUsed[i] && deepEqual(c, prevEl));
+    if (currIdx !== -1) {
+      // Element still exists
+      currUsed[currIdx] = true;
+      result.push({ element: prevEl, status: 'unchanged' });
+    } else {
+      // Element was removed - insert at original position
+      result.push({ element: prevEl, status: 'removed' });
     }
   }
-  return added;
+
+  // Append new elements from curr (elements that weren't in prev)
+  for (let i = 0; i < curr.length; i++) {
+    if (!currUsed[i]) {
+      result.push({ element: curr[i], status: 'added' });
+    }
+  }
+
+  return result;
 }
 
 /** Compute change information for each field */
@@ -183,12 +191,12 @@ function diffChanges(
 
     // Check if both are arrays
     if (Array.isArray(prevVal) && Array.isArray(currVal)) {
-      // Use content-based diff: find added elements (by index in curr) and removed elements
-      const addedIndices = findAddedIndices(prevVal, currVal);
-      const removedElements = findRemovedElements(prevVal, currVal);
-
-      if (addedIndices.size > 0 || removedElements.length > 0) {
-        changes.set(k, { type: 'array', changedIndices: addedIndices, removedElements });
+      // Compute merged view with elements in original order
+      const mergedView = computeMergedView(prevVal, currVal);
+      // Only mark as changed if there are actual additions or removals
+      const hasChanges = mergedView.some(m => m.status !== 'unchanged');
+      if (hasChanges) {
+        changes.set(k, { type: 'array', mergedView });
       }
     } else {
       // Non-array changed, or type changed between array and non-array
@@ -212,23 +220,18 @@ function joinNodes(nodes: React.ReactNode[], sep: React.ReactNode = ', '): React
 }
 
 /** Render any value "inline" (arrays also inline as [a, b, ...], not converted to <ul>) */
-function renderValueInline(x: unknown, changedIndices?: Set<number>, index?: number): React.ReactNode {
-  const isChanged = changedIndices !== undefined && index !== undefined && changedIndices.has(index);
-
+function renderValueInline(x: unknown): React.ReactNode {
   if (Array.isArray(x)) {
-    const elements = x.map((el, i) => renderValueInline(el, changedIndices, i));
+    const elements = x.map((el, i) => <span key={i}>{renderValueInline(el)}</span>);
     return <code>[{joinNodes(elements)}]</code>;
   }
   if (typeof x === 'object' && x !== null) {
-    const content = JSON.stringify(x);
-    return isChanged ? <code className="changed-element">{content}</code> : <code>{content}</code>;
+    return <code>{JSON.stringify(x)}</code>;
   }
   if (typeof x === 'string') {
-    const content = dequalify(x);
-    return isChanged ? <code className="changed-element">{content}</code> : <code>{content}</code>;
+    return <code>{dequalify(x)}</code>;
   }
-  const content = String(x);
-  return isChanged ? <code className="changed-element">{content}</code> : <code>{content}</code>;
+  return <code>{String(x)}</code>;
 }
 
 
@@ -237,8 +240,8 @@ function renderValueInline(x: unknown, changedIndices?: Set<number>, index?: num
  * - Otherwise, render the inner array inline as `[a, b, ...]`
  * If not an array, fallback to regular rendering
 */
-function renderRowFromInnerArray(e: unknown, changedIndices?: Set<number>, index?: number): React.ReactNode {
-  const isChanged = changedIndices !== undefined && index !== undefined && changedIndices.has(index);
+function renderRowFromInnerArray(e: unknown, status?: 'unchanged' | 'added' | 'removed'): React.ReactNode {
+  const className = status === 'added' ? 'changed-element' : status === 'removed' ? 'removed-element' : undefined;
 
   if (Array.isArray(e)) {
     // Check if this is a flat tuple (all elements are primitives, not arrays)
@@ -250,85 +253,77 @@ function renderRowFromInnerArray(e: unknown, changedIndices?: Set<number>, index
         if (i < e.length - 1) parts.push(', ');
       });
       const code = <code>({parts})</code>;
-      return isChanged ? <span className="changed-element">{code}</span> : code;
+      return className ? <span className={className}>{code}</span> : code;
     } else {
       const content = renderValueInline(e);           // ← Nested arrays, inline as [ ... ]
-      return isChanged ? <span className="changed-element">{content}</span> : content;
+      return className ? <span className={className}>{content}</span> : content;
     }
   }
   return renderValue(e);
 }
 
-/** Render a single removed element inline */
-function renderRemovedElement(e: unknown, index: number): React.ReactNode {
-  if (Array.isArray(e)) {
-    // Check if this is a flat tuple (all elements are primitives, not arrays)
-    const isFlatTuple = e.every(el => !Array.isArray(el));
-    if (isFlatTuple) {
-      const parts: React.ReactNode[] = [];
-      e.forEach((el, i) => {
-        parts.push(renderValueInline(el));
-        if (i < e.length - 1) parts.push(', ');
-      });
-      return <span key={`removed-${index}`} className="removed-element"><code>({parts})</code></span>;
-    } else {
-      return <span key={`removed-${index}`} className="removed-element">{renderValueInline(e)}</span>;
-    }
-  }
-  return <span key={`removed-${index}`} className="removed-element">{renderValueInline(e)}</span>;
-}
-
-/** Original: Inline rendering of flat arrays */
-function renderInlineArray(arr: unknown[], changedIndices?: Set<number>, removedElements?: unknown[]): React.ReactNode {
+/** Render inline array using merged view for proper ordering */
+function renderInlineArrayMerged(mergedView: MergedElement[]): React.ReactNode {
   const parts: React.ReactNode[] = [];
 
-  // First, show removed elements with strikethrough
-  if (removedElements && removedElements.length > 0) {
-    removedElements.forEach((e, i) => {
-      parts.push(<span key={`removed-${i}`} className="removed-element">{renderValueInline(e)}</span>);
-      parts.push(<span key={`removed-comma-${i}`}>, </span>);
-    });
-  }
+  mergedView.forEach((item, i) => {
+    const element = renderValueInline(item.element);
+    const className = item.status === 'added' ? 'changed-element' : item.status === 'removed' ? 'removed-element' : undefined;
+    parts.push(className ? <span key={i} className={className}>{element}</span> : <span key={i}>{element}</span>);
+    if (i < mergedView.length - 1) parts.push(<span key={`comma-${i}`}>, </span>);
+  });
+  return <code>[{parts}]</code>;
+}
 
-  // Then show current elements
+/** Original: Inline rendering of flat arrays (when no diff info available) */
+function renderInlineArray(arr: unknown[]): React.ReactNode {
+  const parts: React.ReactNode[] = [];
   arr.forEach((e, i) => {
-    const isChanged = changedIndices !== undefined && changedIndices.has(i);
-    const element = renderValueInline(e);        // Use inline version to avoid converting to <ul>
-    parts.push(isChanged ? <span key={i} className="changed-element">{element}</span> : <span key={i}>{element}</span>);
+    parts.push(<span key={i}>{renderValueInline(e)}</span>);
     if (i < arr.length - 1) parts.push(<span key={`comma-${i}`}>, </span>);
   });
   return <code>[{parts}]</code>;
 }
 
-function renderValue(v: unknown, changedIndices?: Set<number>, removedElements?: unknown[]): React.ReactNode {
+function renderValue(v: unknown, mergedView?: MergedElement[]): React.ReactNode {
   if (Array.isArray(v)) {
-    // Handle empty array with possible removals
-    if (v.length === 0 && (!removedElements || removedElements.length === 0)) {
+    // Handle empty array with no changes
+    if (v.length === 0 && (!mergedView || mergedView.length === 0)) {
       return <code>[]</code>;
     }
 
-    // ★ Key rule: If the array contains inner arrays, render each inner array on a separate line
-    // Inner arrays that are flat tuples will be rendered with parentheses by renderRowFromInnerArray
-    const hasInnerArray = v.some(Array.isArray);
-    const removedHasInnerArray = removedElements?.some(Array.isArray) ?? false;
+    // If we have a merged view, use it for rendering
+    if (mergedView && mergedView.length > 0) {
+      // ★ Key rule: If any element contains inner arrays, render each on a separate line
+      const hasInnerArray = mergedView.some(m => Array.isArray(m.element));
 
-    if (hasInnerArray || removedHasInnerArray) {
+      if (hasInnerArray) {
+        return (
+          <ul className="list">
+            {mergedView.map((item, i) => (
+              <li key={i}>{renderRowFromInnerArray(item.element, item.status)}</li>
+            ))}
+          </ul>
+        );
+      }
+
+      // Top-level flat arrays are rendered with brackets [a, b, c]
+      return renderInlineArrayMerged(mergedView);
+    }
+
+    // No merged view - render without diff highlighting
+    const hasInnerArray = v.some(Array.isArray);
+    if (hasInnerArray) {
       return (
         <ul className="list">
-          {/* First show removed elements */}
-          {removedElements?.map((e, i) => (
-            <li key={`removed-${i}`}>{renderRemovedElement(e, i)}</li>
-          ))}
-          {/* Then show current elements */}
           {v.map((e, i) => (
-            <li key={i}>{renderRowFromInnerArray(e, changedIndices, i)}</li>
+            <li key={i}>{renderRowFromInnerArray(e)}</li>
           ))}
         </ul>
       );
     }
 
-    // Top-level flat arrays are rendered with brackets [a, b, c]
-    return renderInlineArray(v, changedIndices, removedElements);
+    return renderInlineArray(v);
   }
 
   if (typeof v === 'object' && v !== null) {
@@ -393,12 +388,17 @@ const KVRow: React.FC<{
   // Start expanded by default
   const [expanded, setExpanded] = React.useState(true);
 
-  // For array changes, pass the indices and removed elements to the rendering function ONLY when expanded
-  const changedIndices =
-    expanded && changeInfo?.type === 'array' ? changeInfo.changedIndices : undefined;
-  // Only show removed elements if showRemovals is enabled
-  const removedElements =
-    expanded && showRemovals && changeInfo?.type === 'array' ? changeInfo.removedElements : undefined;
+  // For array changes, compute the merged view to pass to renderValue
+  // If showRemovals is false, filter out removed elements from the merged view
+  const mergedView = React.useMemo(() => {
+    if (!expanded || changeInfo?.type !== 'array') return undefined;
+    const view = changeInfo.mergedView;
+    if (!showRemovals) {
+      // Filter out removed elements when showRemovals is false
+      return view.filter(m => m.status !== 'removed');
+    }
+    return view;
+  }, [expanded, changeInfo, showRemovals]);
 
   return (
     <div
@@ -434,7 +434,7 @@ const KVRow: React.FC<{
         )}
 
         <div className="kv-content">
-          {expanded ? renderValue(v, changedIndices, removedElements) : <code>{previewValue(v)}</code>}
+          {expanded ? renderValue(v, mergedView) : <code>{previewValue(v)}</code>}
         </div>
       </div>
     </div>

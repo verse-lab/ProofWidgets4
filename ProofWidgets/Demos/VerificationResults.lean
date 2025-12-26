@@ -338,7 +338,7 @@ def exampleResults : Json := json% {"vcs":
         [{"structuredJson":
           {"theory": {},
            "preState": {"pending": [[0, 0], [0, 1], [0, 2], [1, 0], [1, 2], [2, 0], [2, 1]], "leader": [0]},
-           "postState": {"pending": [[0, 0], [0, 1], [0, 2], [1, 0], [1, 2], [2, 0], [2, 1], [2, 2]], "leader": [0]},
+           "postState": {"pending": [[0, 0], [0, 1], [0, 2], [1, 0], [1, 2], [2, 1], [2, 2]], "leader": [0]},
            "label": {"recv": {"sender": 2, "next": 2, "n": 1}},
            "instantiation": {"node": "Fin 3"}},
           "raw": {"values": 12, "sorts": 1},

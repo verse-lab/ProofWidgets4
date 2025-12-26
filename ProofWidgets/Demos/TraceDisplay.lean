@@ -510,7 +510,7 @@ def exampleNoViolationTrace : Json := json% {
     "fields": {"pending": [[1, 2], [2, 3], [3, 4], [4, 0]], "leader": [1]}},
    {"transition": {"recv": {"sender": 1, "next": 3, "n": 2}},
     "index": 7,
-    "fields": {"pending": [[2, 3], [3, 4], [4, 0]], "leader": [1, 2]}},
+    "fields": {"pending": [[1, 2], [3, 4], [4, 0]], "leader": [1, 2]}},
    {"transition": {"recv": {"sender": 2, "next": 4, "n": 3}},
     "index": 8,
     "fields": {"pending": [[3, 4], [4, 0]], "leader": [1, 2, 3]}},
