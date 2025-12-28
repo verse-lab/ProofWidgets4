@@ -76,6 +76,13 @@ function dequalify(s: string): string {
       // Numbers (including decimals) are kept as is to avoid mis-splitting
       if (/^-?\d+(?:\.\d+)?$/.test(t)) return t;
 
+      // Check for _IndT pattern and keep everything after it
+      const indTMatch = t.match(/_IndT\.(.*)$/);
+      if (indTMatch) {
+        // Return only the part after "_IndT."
+        return indTMatch[1];
+      }
+
       // Remove namespace prefixes for identifiers containing dots, keeping only the last segment
       if (t.includes(".")) {
         const segs = t.split(".");
@@ -211,6 +218,103 @@ function joinNodes(nodes: React.ReactNode[], sep: React.ReactNode = ', '): React
   return <>{out}</>;
 }
 
+/** Collapsible wrapper for object field values */
+const CollapsibleObjectField: React.FC<{ value: unknown }> = ({ value }) => {
+  const [expanded, setExpanded] = React.useState(true);
+
+  // Check if value is collapsible (object, array, or long string)
+  const isCollapsible = React.useMemo(() => {
+    if (Array.isArray(value)) return true;
+    if (typeof value === 'object' && value !== null) return true;
+    if (typeof value === 'string' && value.length > 60) return true;
+    return false;
+  }, [value]);
+
+  const previewText = React.useMemo(() => {
+    if (Array.isArray(value)) {
+      return `Array(${value.length})`;
+    }
+    if (typeof value === 'object' && value !== null) {
+      return `{...}`;
+    }
+    if (typeof value === 'string') {
+      const processed = dequalify(value);
+      return processed.length > 60 ? processed.slice(0, 60) + '...' : processed;
+    }
+    return String(value);
+  }, [value]);
+
+  if (!isCollapsible) {
+    return <>{renderObjectValue(value)}</>;
+  }
+
+  return (
+    <div className="collapsible-field">
+      <button
+        className="field-toggle"
+        type="button"
+        onClick={() => setExpanded(e => !e)}
+        aria-label={expanded ? "Collapse" : "Expand"}
+      >
+        {expanded ? "▼" : "▶"}
+      </button>
+      {expanded ? renderObjectValue(value) : <code className="field-preview">{previewText}</code>}
+    </div>
+  );
+};
+
+/** Collapsible wrapper for rendering entire objects */
+const CollapsibleObject: React.FC<{ obj: Record<string, unknown> }> = ({ obj }) => {
+  const [expanded, setExpanded] = React.useState(true);
+  const entries = Object.entries(obj);
+
+  return (
+    <div className="collapsible-object">
+      <button
+        className="object-toggle"
+        type="button"
+        onClick={() => setExpanded(e => !e)}
+        aria-label={expanded ? "Collapse object" : "Expand object"}
+      >
+        {expanded ? "▼" : "▶"}
+      </button>
+      <code>{'{'}</code>
+      {expanded ? (
+        <ul className="list nested-object">
+          {entries.map(([key, val]) => (
+            <li key={key}>
+              <code>{key}</code>: <CollapsibleObjectField value={val} />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <code className="object-preview">...{entries.length} fields</code>
+      )}
+      <code>{'}'}</code>
+    </div>
+  );
+};
+
+/** Helper function to render values within objects */
+function renderObjectValue(v: unknown): React.ReactNode {
+  if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+    // Nested object - render with collapsible wrapper
+    const obj = v as Record<string, unknown>;
+    return <CollapsibleObject obj={obj} />;
+  }
+
+  if (Array.isArray(v)) {
+    // Array within object - will be handled by renderValue which adds brackets
+    return renderValue(v);
+  }
+
+  if (typeof v === 'string') {
+    return <code>{dequalify(v)}</code>;
+  }
+
+  return <code>{String(v)}</code>;
+}
+
 /** Render any value "inline" (arrays also inline as [a, b, ...], not converted to <ul>) */
 function renderValueInline(x: unknown, changedIndices?: Set<number>, index?: number): React.ReactNode {
   const isChanged = changedIndices !== undefined && index !== undefined && changedIndices.has(index);
@@ -220,8 +324,10 @@ function renderValueInline(x: unknown, changedIndices?: Set<number>, index?: num
     return <code>[{joinNodes(elements)}]</code>;
   }
   if (typeof x === 'object' && x !== null) {
-    const content = JSON.stringify(x);
-    return isChanged ? <code className="changed-element">{content}</code> : <code>{content}</code>;
+    // Render object with collapsible wrapper
+    const obj = x as Record<string, unknown>;
+    const objContent = <CollapsibleObject obj={obj} />;
+    return isChanged ? <span className="changed-element">{objContent}</span> : objContent;
   }
   if (typeof x === 'string') {
     const content = dequalify(x);
@@ -233,7 +339,7 @@ function renderValueInline(x: unknown, changedIndices?: Set<number>, index?: num
 
 
 /** Render a row from an inner array:
- * - If it's a flat tuple (all elements are primitives), render as `(a, b, c)` with parentheses
+ * - If it's a flat tuple (all elements are primitives and not empty), render as `(a, b, c)` with parentheses
  * - Otherwise, render the inner array inline as `[a, b, ...]`
  * If not an array, fallback to regular rendering
 */
@@ -241,8 +347,8 @@ function renderRowFromInnerArray(e: unknown, changedIndices?: Set<number>, index
   const isChanged = changedIndices !== undefined && index !== undefined && changedIndices.has(index);
 
   if (Array.isArray(e)) {
-    // Check if this is a flat tuple (all elements are primitives, not arrays)
-    const isFlatTuple = e.every(el => !Array.isArray(el));
+    // Check if this is a flat tuple (non-empty, all elements are primitives, not arrays or objects)
+    const isFlatTuple = e.length > 0 && e.every(el => !Array.isArray(el) && (typeof el !== 'object' || el === null));
     if (isFlatTuple) {
       const parts: React.ReactNode[] = [];
       e.forEach((el, i) => {
@@ -252,7 +358,7 @@ function renderRowFromInnerArray(e: unknown, changedIndices?: Set<number>, index
       const code = <code>({parts})</code>;
       return isChanged ? <span className="changed-element">{code}</span> : code;
     } else {
-      const content = renderValueInline(e);           // ← Nested arrays, inline as [ ... ]
+      const content = renderValueInline(e);           // ← Nested arrays or empty arrays, inline as [ ... ]
       return isChanged ? <span className="changed-element">{content}</span> : content;
     }
   }
@@ -262,8 +368,8 @@ function renderRowFromInnerArray(e: unknown, changedIndices?: Set<number>, index
 /** Render a single removed element inline */
 function renderRemovedElement(e: unknown, index: number): React.ReactNode {
   if (Array.isArray(e)) {
-    // Check if this is a flat tuple (all elements are primitives, not arrays)
-    const isFlatTuple = e.every(el => !Array.isArray(el));
+    // Check if this is a flat tuple (non-empty, all elements are primitives, not arrays or objects)
+    const isFlatTuple = e.length > 0 && e.every(el => !Array.isArray(el) && (typeof el !== 'object' || el === null));
     if (isFlatTuple) {
       const parts: React.ReactNode[] = [];
       e.forEach((el, i) => {
@@ -332,7 +438,9 @@ function renderValue(v: unknown, changedIndices?: Set<number>, removedElements?:
   }
 
   if (typeof v === 'object' && v !== null) {
-    return <code>{JSON.stringify(v)}</code>;
+    const obj = v as Record<string, unknown>;
+    // Render object with collapsible wrapper
+    return <CollapsibleObject obj={obj} />;
   }
 
   if (typeof v === 'string') {
@@ -1145,6 +1253,52 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
     .json-number { color: var(--vscode-symbolIcon-numberForeground, #b5cea8); }
     .json-boolean { color: var(--vscode-symbolIcon-booleanForeground, #569cd6); }
     .json-null { color: var(--vscode-symbolIcon-nullForeground, #569cd6); }
+    .collapsible-field {
+      display: inline-flex;
+      align-items: flex-start;
+      gap: 4px;
+    }
+    .field-toggle {
+      border: none;
+      background: transparent;
+      font-size: 10px;
+      line-height: 1;
+      cursor: pointer;
+      color: var(--vscode-descriptionForeground);
+      padding: 0 2px;
+      margin-top: 2px;
+    }
+    .field-toggle:hover {
+      color: var(--vscode-foreground);
+    }
+    .field-preview {
+      color: var(--vscode-descriptionForeground);
+      font-style: italic;
+    }
+    .collapsible-object {
+      display: inline-flex;
+      align-items: flex-start;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+    .object-toggle {
+      border: none;
+      background: transparent;
+      font-size: 10px;
+      line-height: 1;
+      cursor: pointer;
+      color: var(--vscode-descriptionForeground);
+      padding: 0 2px;
+      margin-top: 2px;
+    }
+    .object-toggle:hover {
+      color: var(--vscode-foreground);
+    }
+    .object-preview {
+      color: var(--vscode-descriptionForeground);
+      font-style: italic;
+      margin-left: 4px;
+    }
   `;
 
   const prettyJson = JSON.stringify(result, null, 2);
