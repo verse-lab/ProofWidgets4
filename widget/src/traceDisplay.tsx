@@ -297,33 +297,40 @@ const ResultHeader: React.FC<{
   }
 
   // no_violation_found
-  const getTerminationTextWithCount = (reason: TerminationReason | undefined, count: number): string => {
-    if (!reason) return `Explored ${count} states`;
+  const getTerminationText = (reason: TerminationReason | undefined, count: number | undefined): string | null => {
+    const countSuffix = count !== undefined ? ` (explored ${count} states)` : '';
+    const countText = count !== undefined ? `Explored ${count} states` : null;
+
+    if (!reason) return countText;
     if (reason.kind === "explored_all_reachable_states") {
-      return `Explored all reachable states (${count})`;
+      return count !== undefined ? `Explored all reachable states (${count})` : `Explored all reachable states`;
     }
     if (reason.kind === "early_termination" && reason.condition) {
       switch (reason.condition.kind) {
         case "found_violating_state":
-          return `Stopped: found violating state (explored ${count} states)`;
+          return `Stopped: found violating state${countSuffix}`;
         case "deadlock_occurred":
-          return `Stopped: deadlock occurred (explored ${count} states)`;
+          return `Stopped: deadlock occurred${countSuffix}`;
         case "reached_depth_bound":
-          return `Reached depth bound ${reason.condition.depth} (explored ${count} states)`;
+          return `Reached depth bound ${reason.condition.depth}${countSuffix}`;
         default:
-          return `Early termination (explored ${count} states)`;
+          return `Early termination${countSuffix}`;
       }
     }
-    return `Explored ${count} states`;
+    return countText;
   };
+
+  const terminationText = getTerminationText(terminationReason, exploredStates);
 
   return (
     <div className="result-header result-success">
       <span className="result-icon">✓</span>
       <span className="result-label">No Violation Found</span>
-      <div className="result-details">
-        <span>{getTerminationTextWithCount(terminationReason, exploredStates ?? 0)}</span>
-      </div>
+      {terminationText && (
+        <div className="result-details">
+          <span>{terminationText}</span>
+        </div>
+      )}
     </div>
   );
 };

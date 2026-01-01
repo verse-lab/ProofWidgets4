@@ -523,7 +523,7 @@ def exampleNoViolationTrace : Json := json% {
 
 #displayTrace exampleNoViolationTrace
 
-def exampleBMC : Json := json% {"violation": {"violates": [], "kind": "safety_failure"},
+def exampleBMCUnsatFound : Json := json% {"violation": {"violates": ["foo"], "kind": "safety_failure"},
  "trace":
  {"theory": {},
   "states":
@@ -535,12 +535,33 @@ def exampleBMC : Json := json% {"violation": {"violates": [], "kind": "safety_fa
     "fields": {"pending": [[0, 1]], "leader": []}},
    {"transition": {"recv": {"sender": 0, "next": 0, "n": 1}},
     "index": 2,
-    "fields": {"pending": [[0, 0]], "leader": []}},
-   {"transition": {"recv": {"sender": 0, "next": 0, "n": 0}},
+    "fields": {"pending": [], "leader": [1]}},
+   {"transition": {"send": {"next": 0, "n": 0}},
     "index": 3,
-    "fields": {"pending": [], "leader": [0]}}],
+    "fields": {"pending": [[1, 0]], "leader": [1]}}],
   "instantiation": {"node": "Fin 2"},
-  "extraVals": {"tot.le": [[0, 0], [1, 0], [1, 1]], "btwn.btw": []}},
+  "extraVals": {"tot.le": [[0, 0], [0, 1], [1, 1]], "btwn.btw": []}},
  "result": "found_violation"}
 
-#displayTrace exampleBMC
+#displayTrace exampleBMCUnsatFound
+
+def exampleBMCSatFound : Json := json% {"trace":
+ {"theory": {},
+  "states":
+  [{"transition": "after_init",
+    "index": 0,
+    "fields": {"pending": [], "leader": []}},
+   {"transition": {"send": {"next": 1, "n": 0}},
+    "index": 1,
+    "fields": {"pending": [[0, 1]], "leader": []}},
+   {"transition": {"recv": {"sender": 0, "next": 0, "n": 1}},
+    "index": 2,
+    "fields": {"pending": [], "leader": [1]}},
+   {"transition": {"send": {"next": 0, "n": 0}},
+    "index": 3,
+    "fields": {"pending": [[1, 0]], "leader": [1]}}],
+  "instantiation": {"node": "Fin 2"},
+  "extraVals": {"tot.le": [[0, 0], [0, 1], [1, 1]], "btwn.btw": []}},
+ "result": "no_violation_found"}
+
+#displayTrace exampleBMCSatFound
