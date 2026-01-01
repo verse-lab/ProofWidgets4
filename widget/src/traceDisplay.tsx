@@ -12,6 +12,9 @@ import {
   generateFilterPanelCSS,
   generateJsonViewCSS,
   generateToggleLinkCSS,
+  generateInstantiationCSS,
+  mergeTheoryWithExtras,
+  InstantiationRow,
 } from './veilUtils';
 
 
@@ -47,6 +50,8 @@ interface TraceData {
     fields: Record<string, unknown>;
     transition: unknown;
   }>;
+  instantiation?: Record<string, unknown>;
+  extraVals?: Record<string, unknown>;
 }
 
 type ModelCheckingResult =
@@ -235,16 +240,20 @@ const StateCard: React.FC<{
   );
 };
 
-/** Collapsible section for displaying theory info */
-const TheorySection: React.FC<{ theory: Record<string, unknown> }> = ({ theory }) => {
-  const [expanded, setExpanded] = React.useState(false);
-  const entries = Object.entries(theory);
+/** Collapsible section for displaying fields with a title */
+const CollapsibleFieldsSection: React.FC<{
+  title: string;
+  fields: Record<string, unknown>;
+  defaultExpanded?: boolean;
+}> = ({ title, fields, defaultExpanded = false }) => {
+  const [expanded, setExpanded] = React.useState(defaultExpanded);
+  const entries = Object.entries(fields);
 
   return (
     <div className="theory-section">
       <div className="theory-header" onClick={() => setExpanded((e) => !e)}>
         <span className="theory-toggle">{expanded ? "▼" : "▶"}</span>
-        <span className="theory-label">Theory</span>
+        <span className="theory-label">{title}</span>
       </div>
       {expanded && (
         <div className="theory-content">
@@ -257,6 +266,11 @@ const TheorySection: React.FC<{ theory: Record<string, unknown> }> = ({ theory }
       )}
     </div>
   );
+};
+
+/** Collapsible section for displaying theory info */
+const TheorySection: React.FC<{ theory: Record<string, unknown> }> = ({ theory }) => {
+  return <CollapsibleFieldsSection title="Theory" fields={theory} />;
 };
 
 /** Header showing the result status with appropriate icon */
@@ -419,6 +433,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       background: var(--vscode-editorWidget-background);
       border: 1px solid var(--vscode-panel-border);
       border-radius: 4px;
+      max-width: 720px;
     }
     .state-card {
       --border: var(--vscode-panel-border);
@@ -531,6 +546,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       border-radius: 6px;
       font-weight: 600;
       flex-wrap: wrap;
+      max-width: 720px;
     }
     .result-violation {
       background: var(--vscode-inputValidation-errorBackground);
@@ -556,6 +572,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       border: 1px solid var(--vscode-panel-border);
       border-radius: 6px;
       background: var(--vscode-editorWidget-background);
+      max-width: 720px;
     }
     .theory-header {
       display: flex;
@@ -590,6 +607,12 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
     }
     ${generateToggleLinkCSS('mc')}
     ${generateFilterPanelCSS('mc')}
+    ${generateInstantiationCSS('mc')}
+    .mc-instantiation-row {
+      max-width: 720px;
+      margin-left: 8px;
+      margin-right: 8px;
+    }
     .kv-key-clickable {
       cursor: pointer;
     }
@@ -607,7 +630,16 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
 
   // Extract trace and theory from results (works for all result types)
   const trace = traceData ? traceDataToStates(traceData) : [];
-  const theory: Record<string, unknown> | undefined = traceData?.theory;
+
+  // Merge theory with extraVals that have '.' in their names
+  const { combinedTheory, remainingExtraVals } = React.useMemo(() => {
+    if (!traceData?.theory) {
+      return { combinedTheory: {}, remainingExtraVals: {} };
+    }
+    return mergeTheoryWithExtras(traceData.theory, traceData.extraVals);
+  }, [traceData]);
+
+  const instantiation = traceData?.instantiation;
 
   return (
     <>
@@ -662,7 +694,11 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
               </>
             )}
 
-            {theory && <TheorySection theory={theory} />}
+            {instantiation && Object.keys(instantiation).length > 0 && (
+              <InstantiationRow instantiation={instantiation} prefix="mc" />
+            )}
+
+            {Object.keys(combinedTheory).length > 0 && <TheorySection theory={combinedTheory} />}
 
             {trace.length > 0 ? (
               <>
@@ -673,6 +709,10 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
                     return <StateCard key={s.index} st={s} changes={changes} showRemovals={showRemovals} forceOpen={allStatesOpen} hiddenFields={hiddenFields} onHideField={toggleFieldVisibility} onResetForceOpen={() => setAllStatesOpen(null)} />;
                   })}
                 </div>
+
+                {Object.keys(remainingExtraVals).length > 0 && (
+                  <CollapsibleFieldsSection title="Extra Values" fields={remainingExtraVals} />
+                )}
 
                 <div className="mc-summary">
                   <strong>Summary:</strong> {trace.length} states in trace

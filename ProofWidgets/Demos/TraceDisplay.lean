@@ -522,3 +522,25 @@ def exampleNoViolationTrace : Json := json% {
     "fields": {"pending": [], "leader": [0, 1, 2, 3, 4]}}]}}
 
 #displayTrace exampleNoViolationTrace
+
+def exampleBMC : Json := json% {"violation": {"violates": [], "kind": "safety_failure"},
+ "trace":
+ {"theory": {},
+  "states":
+  [{"transition": "after_init",
+    "index": 0,
+    "fields": {"pending": [], "leader": []}},
+   {"transition": {"send": {"next": 1, "n": 0}},
+    "index": 1,
+    "fields": {"pending": [[0, 1]], "leader": []}},
+   {"transition": {"recv": {"sender": 0, "next": 0, "n": 1}},
+    "index": 2,
+    "fields": {"pending": [[0, 0]], "leader": []}},
+   {"transition": {"recv": {"sender": 0, "next": 0, "n": 0}},
+    "index": 3,
+    "fields": {"pending": [], "leader": [0]}}],
+  "instantiation": {"node": "Fin 2"},
+  "extraVals": {"tot.le": [[0, 0], [1, 0], [1, 1]], "btwn.btw": []}},
+ "result": "found_violation"}
+
+#displayTrace exampleBMC

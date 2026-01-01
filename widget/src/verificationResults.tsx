@@ -11,16 +11,30 @@ import {
   generateFilterPanelCSS,
   generateJsonViewCSS,
   generateToggleLinkCSS,
+  generateInstantiationCSS,
+  mergeTheoryWithExtras,
+  InstantiationRow,
 } from './veilUtils';
 
 // ========== Types ==========
 
-interface VCMetadata {
+interface InductionMetadataData {
   stmtDerivedFrom?: string[];
   property: string;
   kind?: 'primary' | 'alternative';
   action: string;
   style?: 'wp' | 'tr';
+}
+
+interface TraceMetadataData {
+  traceName: string;
+  numTransitions: number;
+  isExpectedSat: boolean;
+}
+
+interface VCMetadata {
+  type: 'induction' | 'trace';
+  data: InductionMetadataData | TraceMetadataData;
 }
 
 interface StructuredJson {
@@ -265,26 +279,11 @@ const StructuredCexView: React.FC<{
     return filtered;
   }, [changes, hiddenFields, showRemovals]);
 
-  // Split extraVals: items with '.' in name go to theory, others stay as extra values
-  const { combinedTheory, remainingExtraVals } = React.useMemo(() => {
-    const theoryFromExtras: Record<string, unknown> = {};
-    const otherExtras: Record<string, unknown> = {};
-
-    if (extraVals) {
-      for (const [k, v] of Object.entries(extraVals)) {
-        if (k.includes('.')) {
-          theoryFromExtras[k] = v;
-        } else {
-          otherExtras[k] = v;
-        }
-      }
-    }
-
-    // Merge original theory with theory items from extraVals
-    const combined = { ...theory, ...theoryFromExtras };
-
-    return { combinedTheory: combined, remainingExtraVals: otherExtras };
-  }, [theory, extraVals]);
+  // Merge theory with extraVals that have '.' in their names
+  const { combinedTheory, remainingExtraVals } = React.useMemo(
+    () => mergeTheoryWithExtras(theory, extraVals),
+    [theory, extraVals]
+  );
 
   const toggleFieldVisibility = (fieldName: string) => {
     setHiddenFields(prev => {
@@ -356,18 +355,7 @@ const StructuredCexView: React.FC<{
 
       {/* Instantiation */}
       {instantiation && Object.keys(instantiation).length > 0 && (
-        <div className="cex-instantiation-row">
-          <span className="cex-instantiation-label">Instantiation</span>
-          <div className="cex-instantiation-values">
-            {Object.entries(instantiation).map(([k, v]) => (
-              <span key={k} className="cex-instantiation-item">
-                <span className="cex-instantiation-key">{k}</span>
-                <span className="cex-instantiation-eq">=</span>
-                <span className="cex-instantiation-val">{String(v)}</span>
-              </span>
-            ))}
-          </div>
-        </div>
+        <InstantiationRow instantiation={instantiation} prefix="cex" />
       )}
 
       {/* Theory (collapsible, expanded by default) */}
@@ -476,11 +464,26 @@ function getExceptionsFromVC(vc: VerificationCondition): string[] {
   return exceptions;
 }
 
-// Group VCs by action
+// Helper to check if a VC is an induction VC
+function isInductionVC(vc: VerificationCondition): boolean {
+  return vc.metadata.type === 'induction';
+}
+
+// Helper to get induction metadata data (returns null for trace VCs)
+function getInductionData(vc: VerificationCondition): InductionMetadataData | null {
+  if (vc.metadata.type === 'induction') {
+    return vc.metadata.data as InductionMetadataData;
+  }
+  return null;
+}
+
+// Group VCs by action (only for induction VCs)
 function groupByAction(vcs: VerificationCondition[]): Map<string, VerificationCondition[]> {
   const groups = new Map<string, VerificationCondition[]>();
   for (const vc of vcs) {
-    const action = vc.metadata.action;
+    const inductionData = getInductionData(vc);
+    if (!inductionData) continue; // Skip non-induction VCs
+    const action = inductionData.action;
     if (!groups.has(action)) {
       groups.set(action, []);
     }
@@ -500,9 +503,9 @@ function buildAlternativeMap(vcs: VerificationCondition[]): Map<number, Verifica
   return map;
 }
 
-// Filter to only show primary VCs (exclude all alternatives, whether dormant or not)
+// Filter to only show primary induction VCs (exclude all alternatives and trace VCs)
 function filterToVisibleVCs(vcs: VerificationCondition[]): VerificationCondition[] {
-  return vcs.filter(vc => vc.alternativeFor == null);
+  return vcs.filter(vc => vc.alternativeFor == null && isInductionVC(vc));
 }
 
 // ========== Components ==========
@@ -619,7 +622,7 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC }) => {
           <span className="property-toggle">{expanded ? '▼' : '▶'}</span>
         )}
         <span className="property-icon">{getStatusIcon(vc.status)}</span>
-        <span className="property-name">{vc.metadata.property}</span>
+        <span className="property-name">{getInductionData(vc)?.property}</span>
         {trWasInvoked && (
           <span className={`vc-style-badge tr-badge ${trIsRunning ? 'tr-running' : ''}`}>
             TR{trIsRunning && '...'}
@@ -644,7 +647,7 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC }) => {
           {activeCounterexample.structuredJson && !showRawHtml ? (
             <StructuredCexView
               data={activeCounterexample.structuredJson}
-              property={vc.metadata.property}
+              property={getInductionData(vc)?.property ?? ''}
               headerRightContent={
                 <>
                   <button
@@ -1251,57 +1254,7 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results }
       letter-spacing: 0.5px;
     }
 
-    .cex-instantiation-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 12px;
-      padding: 8px 12px;
-      background: var(--vscode-editorWidget-background);
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 6px;
-    }
-
-    .cex-instantiation-label {
-      font-size: 10px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--vscode-descriptionForeground);
-      flex-shrink: 0;
-    }
-
-    .cex-instantiation-values {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .cex-instantiation-item {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 3px 10px;
-      background: var(--vscode-activityBarBadge-background);
-      color: var(--vscode-activityBarBadge-foreground);
-      border-radius: 12px;
-      font-size: 12px;
-    }
-
-    .cex-instantiation-key {
-      color: var(--vscode-activityBarBadge-foreground);
-      font-weight: 500;
-    }
-
-    .cex-instantiation-eq {
-      color: var(--vscode-activityBarBadge-foreground);
-      opacity: 0.6;
-    }
-
-    .cex-instantiation-val {
-      color: var(--vscode-activityBarBadge-foreground);
-      font-weight: 500;
-    }
+    ${generateInstantiationCSS('cex')}
 
     .cex-action-chip {
       display: inline-block;

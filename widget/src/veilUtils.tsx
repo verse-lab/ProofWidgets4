@@ -589,3 +589,126 @@ export function generateToggleLinkCSS(prefix: string): string {
   }
 `;
 }
+
+/** Generate instantiation row CSS with a given prefix (e.g., 'mc' or 'cex') */
+export function generateInstantiationCSS(prefix: string): string {
+  return `
+  .${prefix}-instantiation-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background: var(--vscode-editorWidget-background);
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 6px;
+  }
+  .${prefix}-instantiation-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--vscode-descriptionForeground);
+    flex-shrink: 0;
+  }
+  .${prefix}-instantiation-values {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .${prefix}-instantiation-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    background: var(--vscode-activityBarBadge-background);
+    color: var(--vscode-activityBarBadge-foreground);
+    border-radius: 12px;
+    font-size: 12px;
+  }
+  .${prefix}-instantiation-key {
+    color: var(--vscode-activityBarBadge-foreground);
+    font-weight: 500;
+  }
+  .${prefix}-instantiation-eq {
+    color: var(--vscode-activityBarBadge-foreground);
+    opacity: 0.6;
+  }
+  .${prefix}-instantiation-val {
+    color: var(--vscode-activityBarBadge-foreground);
+    font-weight: 500;
+  }
+`;
+}
+
+// ========== Extra Values Processing ==========
+
+export interface SplitExtraValsResult {
+  theoryExtras: Record<string, unknown>;
+  remainingExtras: Record<string, unknown>;
+}
+
+/**
+ * Split extraVals: items with '.' in name go to theory, others stay as extra values.
+ * This is used to merge theory-related extraVals (like "tot.le") into the theory section.
+ */
+export function splitExtraVals(extraVals: Record<string, unknown> | undefined): SplitExtraValsResult {
+  const theoryExtras: Record<string, unknown> = {};
+  const remainingExtras: Record<string, unknown> = {};
+
+  if (extraVals) {
+    for (const [k, v] of Object.entries(extraVals)) {
+      if (k.includes('.')) {
+        theoryExtras[k] = v;
+      } else {
+        remainingExtras[k] = v;
+      }
+    }
+  }
+
+  return { theoryExtras, remainingExtras };
+}
+
+/**
+ * Merge theory with extraVals that have '.' in their names.
+ * Returns the combined theory and remaining extraVals.
+ */
+export function mergeTheoryWithExtras(
+  theory: Record<string, unknown>,
+  extraVals: Record<string, unknown> | undefined
+): { combinedTheory: Record<string, unknown>; remainingExtraVals: Record<string, unknown> } {
+  const { theoryExtras, remainingExtras } = splitExtraVals(extraVals);
+  return {
+    combinedTheory: { ...theory, ...theoryExtras },
+    remainingExtraVals: remainingExtras,
+  };
+}
+
+// ========== Instantiation Component ==========
+
+export interface InstantiationRowProps {
+  instantiation: Record<string, unknown>;
+  prefix: string;
+}
+
+/** Reusable instantiation row component */
+export const InstantiationRow: React.FC<InstantiationRowProps> = ({ instantiation, prefix }) => {
+  if (!instantiation || Object.keys(instantiation).length === 0) {
+    return null;
+  }
+
+  return (
+    <div className={`${prefix}-instantiation-row`}>
+      <span className={`${prefix}-instantiation-label`}>Instantiation</span>
+      <div className={`${prefix}-instantiation-values`}>
+        {Object.entries(instantiation).map(([k, v]) => (
+          <span key={k} className={`${prefix}-instantiation-item`}>
+            <span className={`${prefix}-instantiation-key`}>{k}</span>
+            <span className={`${prefix}-instantiation-eq`}>=</span>
+            <span className={`${prefix}-instantiation-val`}>{String(v)}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+};
