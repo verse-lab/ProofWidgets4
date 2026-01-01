@@ -412,9 +412,9 @@ export const sharedDiffCSS = `
 /** Shared CSS for list rendering */
 export const sharedListCSS = `
   ul.list {
-    margin: 4px 0 0 1rem;
+    margin: 4px 0 0 0;
     padding: 0;
-    list-style-position: outside;
+    list-style: none;
   }
   ul.list li {
     font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace);
