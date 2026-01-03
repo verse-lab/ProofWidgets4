@@ -78,6 +78,9 @@ type ModelCheckingResult =
       trace?: TraceData | null;
     }
   | {
+      result: "cancelled";
+    }
+  | {
       // Trace-only data without a result (for displaying execution traces)
       trace: TraceData;
     };
@@ -288,11 +291,23 @@ const TheorySection: React.FC<{ theory: Record<string, unknown> }> = ({ theory }
 
 /** Header showing the result status with appropriate icon */
 const ResultHeader: React.FC<{
-  resultType: "found_violation" | "no_violation_found";
+  resultType: "found_violation" | "no_violation_found" | "cancelled";
   violation?: Violation;
   exploredStates?: number;
   terminationReason?: TerminationReason;
 }> = ({ resultType, violation, exploredStates, terminationReason }) => {
+  if (resultType === "cancelled") {
+    return (
+      <div className="result-header result-cancelled">
+        <span className="result-icon">⊘</span>
+        <span className="result-label">Cancelled</span>
+        <div className="result-details">
+          Model checking was cancelled before completion
+        </div>
+      </div>
+    );
+  }
+
   if (resultType === "found_violation" && violation) {
     let icon: string;
     let label: string;
@@ -388,7 +403,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
   const [showFilterPanel, setShowFilterPanel] = React.useState(false);
 
   // Compute all unique field names from the trace
-  const traceData = result.trace;
+  const traceData = 'trace' in result ? result.trace : undefined;
   const allFieldNames = React.useMemo(() => {
     if (!traceData?.states) return [];
     const names = new Set<string>();
@@ -616,6 +631,11 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       border: 1px solid var(--vscode-inputValidation-infoBorder);
       color: var(--vscode-inputValidation-infoForeground, var(--vscode-foreground));
     }
+    .result-cancelled {
+      background: var(--vscode-inputValidation-warningBackground);
+      border: 1px solid var(--vscode-inputValidation-warningBorder);
+      color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
+    }
     .result-icon { font-size: 18px; }
     .result-label { font-size: 14px; }
     .result-details {
@@ -737,7 +757,9 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
           <>
             {'result' in result && (
               <>
-                {result.result === "no_violation_found" ? (
+                {result.result === "cancelled" ? (
+                  <ResultHeader resultType="cancelled" />
+                ) : result.result === "no_violation_found" ? (
                   <ResultHeader
                     resultType="no_violation_found"
                     exploredStates={result.explored_states}

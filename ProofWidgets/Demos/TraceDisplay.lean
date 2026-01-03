@@ -586,3 +586,7 @@ def exampleAssertionFailure : Json := json% {"violation":
  "result": "found_violation"}
 
 #displayTrace exampleAssertionFailure
+
+def exampleCancelled : Json := json% {"result": "cancelled"}
+
+#displayTrace exampleCancelled
