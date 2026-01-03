@@ -565,3 +565,24 @@ def exampleBMCSatFound : Json := json% {"trace":
  "result": "no_violation_found"}
 
 #displayTrace exampleBMCSatFound
+
+
+def exampleAssertionFailure : Json := json% {"violation":
+ {"kind": "assertion_failure",
+  "exception_id": 1,
+  "assertion_info":
+  {"procedureName": "send", "moduleName": "Ring", "line": 45, "column": 2}},
+ "trace":
+ {"theory": {},
+  "states":
+  [{"transition": "after_init",
+    "index": 0,
+    "fields": {"pending": [], "leader": []}},
+   {"transition": {"send": {"next": 1, "n": 0}},
+    "index": 1,
+    "fields": {"pending": [], "leader": []},
+    "failing": true}]},
+ "state_fingerprint": "10967581844109946240",
+ "result": "found_violation"}
+
+#displayTrace exampleAssertionFailure

@@ -23,14 +23,24 @@ interface ParsedState {
   index: number;
   tag?: string; // Optional tag associated with this state (e.g. transition/action label)
   fields: Record<string, unknown>;
+  failing?: boolean; // True if an assertion failed while executing the transition to this state
 }
 type Trace = ParsedState[];
 
-type ViolationKind = "safety_failure" | "deadlock";
+type ViolationKind = "safety_failure" | "deadlock" | "assertion_failure";
+
+interface AssertionInfo {
+  procedureName: string;
+  moduleName: string;
+  line: number;
+  column: number;
+}
 
 interface Violation {
   kind: ViolationKind;
   violates?: string[]; // Array of violated property names (only present for safety_failure)
+  exception_id?: number; // Only present for assertion_failure
+  assertion_info?: AssertionInfo; // Only present for assertion_failure
 }
 
 interface EarlyTerminationCondition {
@@ -49,6 +59,7 @@ interface TraceData {
     index: number;
     fields: Record<string, unknown>;
     transition: unknown;
+    failing?: boolean;
   }>;
   instantiation?: Record<string, unknown>;
   extraVals?: Record<string, unknown>;
@@ -191,6 +202,7 @@ const StateCard: React.FC<{
   onHideField?: (fieldName: string) => void;
   onResetForceOpen?: () => void;  // Called when user clicks header while forceOpen is active
 }> = ({ st, highlighted = false, changes, showRemovals = false, forceOpen = null, hiddenFields, onHideField, onResetForceOpen }) => {
+  const isFailing = st.failing === true;
   const [localOpen, setLocalOpen] = React.useState(true);
 
   // Sync local state when forceOpen changes - this ensures that when we
@@ -218,11 +230,12 @@ const StateCard: React.FC<{
   const entries = Object.entries(st.fields).filter(([k]) => !hiddenFields?.has(k));
 
   return (
-    <div className={`state-card ${highlighted ? "is-highlighted" : ""}`}>
+    <div className={`state-card ${highlighted ? "is-highlighted" : ""} ${isFailing ? "is-failing" : ""}`}>
       <div className="state-header" onClick={handleHeaderClick}>
         <span className="action-chip" title={st.tag ?? ''}>
           {st.tag || '(no action)'}
         </span>
+        {isFailing && <span className="failing-badge">FAILED</span>}
         <span className="state-id">(index: {st.index})</span>
         <div className="state-toggle">{open ? "▼" : "▶"}</div>
       </div>
@@ -281,8 +294,21 @@ const ResultHeader: React.FC<{
   terminationReason?: TerminationReason;
 }> = ({ resultType, violation, exploredStates, terminationReason }) => {
   if (resultType === "found_violation" && violation) {
-    const icon = violation.kind === "deadlock" ? "🔒" : "⚠️";
-    const label = violation.kind === "deadlock" ? "Deadlock Detected" : "Safety Violation Found";
+    let icon: string;
+    let label: string;
+    switch (violation.kind) {
+      case "deadlock":
+        icon = "🔒";
+        label = "Deadlock Detected";
+        break;
+      case "assertion_failure":
+        icon = "💥";
+        label = "Assertion Failed";
+        break;
+      default:
+        icon = "⚠️";
+        label = "Safety Violation Found";
+    }
     return (
       <div className="result-header result-violation">
         <span className="result-icon">{icon}</span>
@@ -290,6 +316,11 @@ const ResultHeader: React.FC<{
         {violation.kind === "safety_failure" && violation.violates && violation.violates.length > 0 && (
           <div className="result-details">
             <strong>Violated properties:</strong> {violation.violates.join(", ")}
+          </div>
+        )}
+        {violation.kind === "assertion_failure" && violation.assertion_info && (
+          <div className="result-details">
+            <strong>Location:</strong> {violation.assertion_info.moduleName}.{violation.assertion_info.procedureName} (line {violation.assertion_info.line}, column {violation.assertion_info.column})
           </div>
         )}
       </div>
@@ -341,6 +372,7 @@ function traceDataToStates(traceData: TraceData): ParsedState[] {
     index: st.index,
     tag: formatActionLabel(st.transition),
     fields: st.fields,
+    failing: st.failing,
   }));
 }
 
@@ -457,6 +489,25 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
     .state-card.is-highlighted {
       outline: 2px solid var(--vscode-editor-selectionHighlightBorder);
       box-shadow: 0 0 0 3px var(--vscode-editor-selectionBackground);
+    }
+    .state-card.is-failing {
+      outline: 2px solid var(--vscode-inputValidation-errorBorder);
+      box-shadow: 0 0 0 3px var(--vscode-inputValidation-errorBackground);
+    }
+    .state-card.is-failing .state-header {
+      background: var(--vscode-inputValidation-errorBackground);
+    }
+    .failing-badge {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 600;
+      background: var(--vscode-inputValidation-errorBorder);
+      color: var(--vscode-editor-background);
+      border-radius: 3px;
+      padding: 2px 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
     .state-header {
       background: var(--header);
